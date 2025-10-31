@@ -1,0 +1,676 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="main-container fade-in">
+  <!-- 标题区域 -->
+  <header class="text-center mb-5 mb-lg-6">
+    <i class="fas fa-eye fa-4x fa-lg-5x mb-4 float-animation" style="color: var(--primary-color);"></i>
+    <h1 class="display-4 fw-bold mb-3">智能目标检测</h1>
+    <p class="lead text-muted fs-5 d-none d-lg-block">上传图片，使用先进的YOLO技术检测目标</p>
+    <p class="text-muted fs-6 d-lg-none">上传图片进行目标检测</p>
+  </header>
+
+  <!-- 上传区域 -->
+  <section class="upload-section mb-5 mb-lg-6">
+    <form action="/infer" method="POST" enctype="multipart/form-data" id="uploadForm" class="text-center">
+      <!-- 上传框 -->
+      <div class="upload-area mx-auto mb-4" id="uploadArea"
+           role="button"
+           tabindex="0"
+           aria-label="图片上传区域，可以拖拽或点击选择图片文件"
+           aria-describedby="upload-help">
+        <i class="fas fa-cloud-upload-alt fa-3x mb-4" style="color: var(--primary-color);" aria-hidden="true"></i>
+        <h4 class="fw-semibold mb-3">拖拽图片到此处</h4>
+        <p class="text-muted mb-4">或</p>
+        <input type="file"
+               name="file"
+               accept=".jpg, .jpeg, .png, .webp, .bmp, .gif, .tiff, .tif"
+               class="form-control"
+               id="fileInput"
+               required
+               aria-label="选择图片文件"
+               style="display: none;">
+        <button type="button"
+                class="btn btn-outline-primary px-5 py-3"
+                id="selectFileBtn"
+                style="cursor: pointer; margin: 0;">
+          <i class="fas fa-folder-open me-2"></i>点击选择文件
+        </button>
+        <p class="text-muted mt-4 mb-0" id="upload-help">
+          支持 JPG, JPEG, PNG, WEBP, BMP, GIF, TIFF 格式，最大文件大小 16MB
+        </p>
+      </div>
+
+      <!-- 预览区域 -->
+      <div id="previewContainer" class="preview-section mb-4" style="display: none;">
+        <h5 class="fw-semibold mb-3">图片预览</h5>
+        <img id="previewImage" class="img-fluid rounded-3 shadow-lg" style="max-height: 200px; border: 3px solid var(--primary-color);">
+      </div>
+
+      <!-- 配置区域 -->
+      <div class="config-section card mx-auto mb-4" style="max-width: 800px;">
+        <div class="card-body p-4">
+          <h5 class="card-title text-center mb-4 fw-semibold">
+            <i class="fas fa-cog me-2"></i>检测配置
+          </h5>
+          <div class="row g-4 justify-content-center align-items-start">
+            <!-- 模型选择 -->
+            <div class="col-12">
+              <div class="text-center">
+                <label for="modelSelect" class="form-label fw-semibold d-block mb-3">
+                  <i class="fas fa-robot me-2"></i>选择模型
+                </label>
+                <select class="form-select mx-auto" id="modelSelect" name="model" style="max-width: 450px;">
+                  <optgroup label="YOLOv11 系列">
+                    <option value="yolo11n.pt">YOLOv11 Nano (最快)</option>
+                    <option value="yolo11s.pt">YOLOv11 Small</option>
+                    <option value="yolo11m.pt">YOLOv11 Medium</option>
+                    <option value="yolo11l.pt">YOLOv11 Large</option>
+                    <option value="yolo11x.pt">YOLOv11 Extra Large (最准确)</option>
+                  </optgroup>
+                  <optgroup label="YOLOv8 系列">
+                    <option value="yolov8n.pt">YOLOv8 Nano</option>
+                    <option value="yolov8s.pt">YOLOv8 Small</option>
+                    <option value="yolov8m.pt">YOLOv8 Medium</option>
+                    <option value="yolov8l.pt">YOLOv8 Large</option>
+                    <option value="yolov8x.pt">YOLOv8 Extra Large</option>
+                  </optgroup>
+                  <optgroup label="YOLOv5 系列">
+                    <option value="yolov5n.pt">YOLOv5 Nano</option>
+                    <option value="yolov5s.pt">YOLOv5 Small</option>
+                    <option value="yolov5m.pt">YOLOv5 Medium</option>
+                    <option value="yolov5l.pt">YOLOv5 Large</option>
+                    <option value="yolov5x.pt">YOLOv5 Extra Large</option>
+                  </optgroup>
+                  <optgroup label="自定义模型" id="customModelsGroup" style="display: none;">
+                    <!-- 自定义模型将通过JavaScript动态添加 -->
+                  </optgroup>
+                </select>
+              </div>
+            </div>
+
+            <!-- 参数调节 -->
+            <div class="col-12 col-lg-6">
+              <div class="text-center">
+                <label for="confidenceSlider" class="form-label fw-semibold d-block mb-3">
+                  <i class="fas fa-bullseye me-2"></i>置信度阈值
+                </label>
+                <div class="d-flex flex-column align-items-center gap-3">
+                  <input type="range" class="form-range" style="max-width: 250px;" id="confidenceSlider" min="0.1" max="0.9" step="0.05" value="0.25">
+                  <div class="d-flex align-items-center gap-3">
+                    <input type="number" class="form-control text-center" id="confidenceInput" min="0.1" max="0.9" step="0.05" value="0.25" style="width: 100px;">
+                    <span class="badge bg-primary px-3 py-2 fs-6" id="confidenceValue">0.25</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="col-12 col-lg-6">
+              <div class="text-center">
+                <label for="iouSlider" class="form-label fw-semibold d-block mb-3">
+                  <i class="fas fa-vector-square me-2"></i>IOU阈值
+                </label>
+                <div class="d-flex flex-column align-items-center gap-3">
+                  <input type="range" class="form-range" style="max-width: 250px;" id="iouSlider" min="0.1" max="0.9" step="0.05" value="0.45">
+                  <div class="d-flex align-items-center gap-3">
+                    <input type="number" class="form-control text-center" id="iouInput" min="0.1" max="0.9" step="0.05" value="0.45" style="width: 100px;">
+                    <span class="badge bg-success px-3 py-2 fs-6" id="iouValue">0.45</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 检测按钮 -->
+      <div class="submit-section text-center">
+        <button type="submit" class="btn btn-primary btn-lg px-6 py-3 position-relative" id="uploadBtn" disabled style="min-width: 200px;">
+          <span id="uploadBtnText">
+            <i class="fas fa-search me-2"></i>开始检测
+          </span>
+          <div class="loading-spinner ms-2" id="uploadSpinner"></div>
+          <div class="ripple-effect"></div>
+        </button>
+
+        <!-- 进度条 -->
+        <div class="progress-container mt-4" id="progressContainer" style="display: none;">
+          <div class="modern-progress mx-auto" style="max-width: 400px;">
+            <div class="modern-progress-bar" id="progressBar" style="width: 0%"></div>
+          </div>
+          <div class="text-center mt-3">
+            <small class="text-muted" id="progressText">正在上传图片...</small>
+          </div>
+        </div>
+      </div>
+    </form>
+  </section>
+
+  <!-- 特性展示 - 横向布局 -->
+  <section class="features-section">
+    <div class="text-center mb-5">
+      <h3 class="fw-bold mb-3">核心特性</h3>
+      <p class="text-muted fs-5">体验先进的目标检测技术</p>
+    </div>
+    <div class="row justify-content-center g-4 align-items-stretch">
+      <div class="col-6 col-md-4 col-lg-2">
+        <div class="feature-item h-100">
+          <div class="feature-icon mx-auto mb-3">
+            <i class="fas fa-bolt"></i>
+          </div>
+          <h6 class="fw-semibold mb-2">实时检测</h6>
+          <p class="text-muted small mb-0">基于YOLO算法的快速准确目标检测</p>
+        </div>
+      </div>
+      <div class="col-6 col-md-4 col-lg-2">
+        <div class="feature-item h-100">
+          <div class="feature-icon mx-auto mb-3">
+            <i class="fas fa-cogs"></i>
+          </div>
+          <h6 class="fw-semibold mb-2">多模型支持</h6>
+          <p class="text-muted small mb-0">支持YOLOv5/v8/v11及自定义模型</p>
+        </div>
+      </div>
+      <div class="col-6 col-md-4 col-lg-2">
+        <div class="feature-item h-100">
+          <div class="feature-icon mx-auto mb-3">
+            <i class="fas fa-sliders-h"></i>
+          </div>
+          <h6 class="fw-semibold mb-2">灵活配置</h6>
+          <p class="text-muted small mb-0">可调节置信度阈值和模型选择</p>
+        </div>
+      </div>
+      <div class="col-6 col-md-4 col-lg-2">
+        <div class="feature-item h-100">
+          <div class="feature-icon mx-auto mb-3">
+            <i class="fas fa-shield-alt"></i>
+          </div>
+          <h6 class="fw-semibold mb-2">安全可靠</h6>
+          <p class="text-muted small mb-0">本地处理，保护数据隐私</p>
+        </div>
+      </div>
+      <div class="col-6 col-md-4 col-lg-2">
+        <div class="feature-item h-100">
+          <div class="feature-icon mx-auto mb-3">
+            <i class="fas fa-palette"></i>
+          </div>
+          <h6 class="fw-semibold mb-2">可视化输出</h6>
+          <p class="text-muted small mb-0">直观的检测框和置信度显示</p>
+        </div>
+      </div>
+      <div class="col-6 col-md-4 col-lg-2">
+        <div class="feature-item h-100">
+          <div class="feature-icon mx-auto mb-3">
+            <i class="fas fa-download"></i>
+          </div>
+          <h6 class="fw-semibold mb-2">结果导出</h6>
+          <p class="text-muted small mb-0">支持下载和分享检测结果</p>
+        </div>
+      </div>
+    </div>
+  </section>
+</div>
+
+<script>
+// 页面加载时获取自定义模型
+document.addEventListener('DOMContentLoaded', function() {
+    loadCustomModels();
+
+    // 卡片动画
+    const cards = document.querySelectorAll('.card');
+    cards.forEach((card, index) => {
+        card.style.animationDelay = `${index * 0.1}s`;
+        card.classList.add('fade-in');
+    });
+});
+
+// 加载自定义模型
+async function loadCustomModels() {
+    try {
+        const response = await fetch('/api/models');
+        const data = await response.json();
+
+        if (data.custom_models && data.custom_models.length > 0) {
+            const customGroup = document.getElementById('customModelsGroup');
+            customGroup.style.display = 'block';
+
+            // 清空现有自定义模型选项
+            customGroup.innerHTML = '';
+
+            // 添加自定义模型选项
+            data.custom_models.forEach(model => {
+                const option = document.createElement('option');
+                option.value = model;
+                option.textContent = model.replace('.pt', '') + ' (自定义)';
+                customGroup.appendChild(option);
+            });
+        }
+    } catch (error) {
+        console.log('无法加载自定义模型:', error);
+    }
+}
+
+// 文件输入处理 (已移动到页面加载事件中)
+
+// 置信度双模式处理
+function setupConfidenceControls() {
+    const slider = document.getElementById('confidenceSlider');
+    const input = document.getElementById('confidenceInput');
+    const badge = document.getElementById('confidenceValue');
+
+    // 滑块变化时更新输入框和标签
+    slider.addEventListener('input', function(e) {
+        const value = parseFloat(e.target.value);
+        input.value = value;
+        badge.textContent = value;
+    });
+
+    // 输入框变化时更新滑块和标签
+    input.addEventListener('input', function(e) {
+        let value = parseFloat(e.target.value);
+
+        // 验证输入值范围
+        if (isNaN(value)) value = 0.25;
+        if (value < 0.1) value = 0.1;
+        if (value > 0.9) value = 0.9;
+
+        // 四舍五入到步长的精度
+        value = Math.round(value / 0.05) * 0.05;
+
+        input.value = value;
+        slider.value = value;
+        badge.textContent = value;
+    });
+
+    // 输入框失去焦点时验证格式
+    input.addEventListener('blur', function(e) {
+        let value = parseFloat(e.target.value);
+        if (isNaN(value) || value < 0.1 || value > 0.9) {
+            value = 0.25;
+            input.value = value;
+            slider.value = value;
+            badge.textContent = value;
+        }
+    });
+}
+
+// IOU双模式处理
+function setupIOUControls() {
+    const slider = document.getElementById('iouSlider');
+    const input = document.getElementById('iouInput');
+    const badge = document.getElementById('iouValue');
+
+    // 滑块变化时更新输入框和标签
+    slider.addEventListener('input', function(e) {
+        const value = parseFloat(e.target.value);
+        input.value = value;
+        badge.textContent = value;
+    });
+
+    // 输入框变化时更新滑块和标签
+    input.addEventListener('input', function(e) {
+        let value = parseFloat(e.target.value);
+
+        // 验证输入值范围
+        if (isNaN(value)) value = 0.45;
+        if (value < 0.1) value = 0.1;
+        if (value > 0.9) value = 0.9;
+
+        // 四舍五入到步长的精度
+        value = Math.round(value / 0.05) * 0.05;
+
+        input.value = value;
+        slider.value = value;
+        badge.textContent = value;
+    });
+
+    // 输入框失去焦点时验证格式
+    input.addEventListener('blur', function(e) {
+        let value = parseFloat(e.target.value);
+        if (isNaN(value) || value < 0.1 || value > 0.9) {
+            value = 0.45;
+            input.value = value;
+            slider.value = value;
+            badge.textContent = value;
+        }
+    });
+}
+
+// 初始化控件
+document.addEventListener('DOMContentLoaded', function() {
+    setupConfidenceControls();
+    setupIOUControls();
+});
+
+// 表单提交处理
+document.getElementById('uploadForm').addEventListener('submit', function(e) {
+    const uploadBtn = document.getElementById('uploadBtn');
+    const uploadBtnText = document.getElementById('uploadBtnText');
+    const uploadSpinner = document.getElementById('uploadSpinner');
+    const progressContainer = document.getElementById('progressContainer');
+    const progressBar = document.getElementById('progressBar');
+    const progressText = document.getElementById('progressText');
+
+    // 显示加载状态
+    uploadBtn.disabled = true;
+    uploadBtnText.style.display = 'none';
+    uploadSpinner.style.display = 'inline-block';
+    progressContainer.style.display = 'block';
+
+    // 添加波纹效果
+    createRipple(e);
+
+    // 显示Toast通知
+    showToast('info', '正在上传图片并进行检测...', 'info');
+
+    // 模拟进度条动画
+    let progress = 0;
+    const progressInterval = setInterval(() => {
+        progress += Math.random() * 15;
+        if (progress > 90) progress = 90;
+
+        progressBar.style.width = progress + '%';
+
+        if (progress < 30) {
+            progressText.textContent = '正在上传图片...';
+        } else if (progress < 60) {
+            progressText.textContent = '正在加载模型...';
+        } else if (progress < 90) {
+            progressText.textContent = '正在进行目标检测...';
+        }
+    }, 200);
+
+    // 获取配置参数
+    const model = document.getElementById('modelSelect').value;
+    const confidence = document.getElementById('confidenceInput').value;
+    const iou = document.getElementById('iouInput').value;
+
+    // 创建隐藏输入字段
+    let modelInput = document.createElement('input');
+    modelInput.type = 'hidden';
+    modelInput.name = 'model';
+    modelInput.value = model;
+    this.appendChild(modelInput);
+
+    let confidenceInput = document.createElement('input');
+    confidenceInput.type = 'hidden';
+    confidenceInput.name = 'confidence';
+    confidenceInput.value = confidence;
+    this.appendChild(confidenceInput);
+
+    let iouInput = document.createElement('input');
+    iouInput.type = 'hidden';
+    iouInput.name = 'iou';
+    iouInput.value = iou;
+    this.appendChild(iouInput);
+
+    // 设置超时，防止进度条无限运行
+    setTimeout(() => {
+        clearInterval(progressInterval);
+        progressBar.style.width = '100%';
+        progressText.textContent = '检测完成！';
+    }, 3000);
+});
+
+// 创建波纹效果
+function createRipple(e) {
+    const button = e.currentTarget;
+    const ripple = document.createElement('span');
+    const rect = button.getBoundingClientRect();
+    const size = Math.max(rect.width, rect.height);
+    const x = e.clientX - rect.left - size / 2;
+    const y = e.clientY - rect.top - size / 2;
+
+    ripple.style.width = ripple.style.height = size + 'px';
+    ripple.style.left = x + 'px';
+    ripple.style.top = y + 'px';
+    ripple.classList.add('ripple-effect');
+
+    button.appendChild(ripple);
+
+    setTimeout(() => {
+        ripple.remove();
+    }, 600);
+}
+
+// 为按钮添加波纹效果
+const uploadBtn = document.getElementById('uploadBtn');
+if (uploadBtn) {
+    uploadBtn.addEventListener('click', createRipple);
+}
+
+// 处理拖拽文件
+function handleDrop(e) {
+    e.preventDefault();
+    e.stopPropagation();
+
+    const dt = e.dataTransfer;
+    const files = dt.files;
+
+    // 验证拖拽的文件
+    if (files.length === 0) {
+        showToast('error', '没有检测到文件', 'error');
+        return;
+    }
+
+    const file = files[0];
+
+    // 处理文件
+    if (handleFile(file)) {
+        // 设置文件输入框的值（保留用于表单提交）
+        const fileInput = document.getElementById('fileInput');
+
+        // 创建新的DataTransfer对象来设置文件
+        const dataTransfer = new DataTransfer();
+        dataTransfer.items.add(file);
+        fileInput.files = dataTransfer.files;
+
+        // 显示成功提示
+        showToast('success', `已添加文件: ${file.name}`, 'success');
+    }
+}
+
+// 键盘快捷键支持
+document.addEventListener('keydown', function(e) {
+    // Ctrl+Enter 快速上传
+    if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+        const uploadBtn = document.getElementById('uploadBtn');
+        if (uploadBtn && !uploadBtn.disabled) {
+            e.preventDefault();
+            console.log('⌨️ Ctrl+Enter 触发上传');
+            uploadBtn.form?.dispatchEvent(new Event('submit'));
+        }
+    }
+
+    // Ctrl+O 打开文件选择
+    if ((e.ctrlKey || e.metaKey) && e.key === 'o') {
+        e.preventDefault();
+        const fileInput = document.getElementById('fileInput');
+        if (fileInput) {
+            console.log('⌨️ Ctrl+O 打开文件选择');
+            fileInput.click();
+        }
+    }
+});
+
+// 文件处理函数（用于拖拽上传）
+function handleFile(file) {
+    if (!file) {
+        return false;
+    }
+
+    // 验证文件类型
+    const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
+    if (!allowedTypes.includes(file.type)) {
+        showToast('error', '不支持的文件类型，请选择 JPG、PNG 或 WEBP 图片', 'error');
+        return false;
+    }
+
+    // 验证文件大小 (最大16MB)
+    if (file.size > 16 * 1024 * 1024) {
+        showToast('error', '文件大小不能超过 16MB', 'error');
+        return false;
+    }
+
+    // 启用上传按钮
+    document.getElementById('uploadBtn').disabled = false;
+
+    // 显示预览
+    const reader = new FileReader();
+    reader.onload = function(e) {
+        const previewImg = document.getElementById('previewImage');
+        previewImg.src = e.target.result;
+        document.getElementById('previewContainer').style.display = 'block';
+        document.getElementById('previewContainer').classList.add('fade-in');
+        showToast('success', '图片已成功加载', 'success');
+    };
+    reader.readAsDataURL(file);
+
+    return true;
+}
+
+// 页面加载完成后添加增强功能
+document.addEventListener('DOMContentLoaded', function() {
+    console.log('页面加载完成，初始化事件监听器...');
+
+    // 获取DOM元素
+    const fileInput = document.getElementById('fileInput');
+    const selectBtn = document.getElementById('selectFileBtn');
+    const uploadArea = document.getElementById('uploadArea');
+    const modelSelect = document.getElementById('modelSelect');
+
+    // 初始化拖拽功能
+    if (uploadArea && fileInput) {
+        initDragAndDrop();
+    }
+
+    // 文件输入框初始化
+    if (fileInput) {
+        fileInput.setAttribute('title', '支持 JPG、PNG、WEBP 格式，最大 16MB');
+        console.log('✅ 文件输入框初始化完成');
+    } else {
+        console.error('❌ 找不到文件输入框');
+    }
+
+    // 模型选择事件
+    if (modelSelect) {
+        modelSelect.addEventListener('change', function(e) {
+            const modelText = e.target.options[e.target.selectedIndex].text;
+            showToast('info', `已选择模型: ${modelText}`, 'info');
+        });
+        console.log('模型选择器初始化完成');
+    } else {
+        console.error('找不到模型选择器');
+    }
+
+    // 文件上传处理 - 使用按钮点击触发文件选择
+    if (fileInput) {
+        console.log('✅ 文件输入框初始化完成');
+
+        // 为选择文件按钮添加点击事件
+        const selectFileBtn = document.getElementById('selectFileBtn');
+        if (selectFileBtn) {
+            selectFileBtn.addEventListener('click', function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+                console.log('选择文件按钮被点击');
+                try {
+                    fileInput.click();
+                    console.log('文件选择对话框已打开');
+                } catch (error) {
+                    console.error('打开文件选择对话框失败:', error);
+                }
+            });
+            console.log('✅ 选择文件按钮点击事件初始化完成');
+        }
+
+        // 为整个上传区域添加点击事件（排除按钮区域）
+        if (uploadArea) {
+            uploadArea.addEventListener('click', function(e) {
+                // 如果点击的不是选择文件按钮，才触发文件选择
+                if (!e.target.closest('#selectFileBtn')) {
+                    e.preventDefault();
+                    console.log('上传区域被点击');
+                    try {
+                        fileInput.click();
+                    } catch (error) {
+                        console.error('打开文件选择对话框失败:', error);
+                    }
+                }
+            });
+            console.log('✅ 上传区域点击事件初始化完成');
+        }
+
+        // 文件输入变化事件
+        fileInput.addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            if (file) {
+                console.log('✅ 文件选择成功:', file.name);
+                handleFile(file);
+            }
+        });
+
+        console.log('✅ 文件选择功能初始化完成');
+    }
+
+    console.log('所有事件监听器初始化完成');
+});
+
+// 测试函数已移除 - 使用原生HTML label标签实现
+
+// 初始化拖拽功能
+function initDragAndDrop() {
+    const uploadArea = document.getElementById('uploadArea');
+    const fileInput = document.getElementById('fileInput');
+
+    if (!uploadArea || !fileInput) {
+        console.error('Upload area or file input not found');
+        return;
+    }
+
+    ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+        uploadArea.addEventListener(eventName, preventDefaults, false);
+    });
+
+    // 防止页面级别的拖拽事件
+    document.addEventListener('dragover', function(e) {
+        e.preventDefault();
+    });
+
+    document.addEventListener('drop', function(e) {
+        e.preventDefault();
+    });
+
+    ['dragenter', 'dragover'].forEach(eventName => {
+        uploadArea.addEventListener(eventName, highlight, false);
+    });
+
+    ['dragleave', 'drop'].forEach(eventName => {
+        uploadArea.addEventListener(eventName, unhighlight, false);
+    });
+
+    uploadArea.addEventListener('drop', handleDrop, false);
+    console.log('拖拽功能初始化完成');
+}
+
+function preventDefaults(e) {
+    e.preventDefault();
+    e.stopPropagation();
+}
+
+function highlight(e) {
+    const uploadArea = document.getElementById('uploadArea');
+    if (uploadArea) {
+        uploadArea.classList.add('dragover');
+    }
+}
+
+function unhighlight(e) {
+    const uploadArea = document.getElementById('uploadArea');
+    if (uploadArea) {
+        uploadArea.classList.remove('dragover');
+    }
+}
+
+</script>
+{% endblock %}

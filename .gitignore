@@ -1,0 +1,104 @@
+# .gitignore
+
+# Directories
+/static/sheets
+/static/img
+/static/img_out
+/static/uploads/
+/static/outputs/
+/__pycache__
+/.idea
+/runs
+/.claude
+/base
+
+# Image files (all formats)
+*.jpg
+*.JPG
+*.jpeg
+*.png
+*.gif
+*.bmp
+*.tiff
+*.tif
+*.webp
+*.svg
+*.ico
+*.psd
+*.raw
+*.cr2
+*.nef
+*.arw
+*.dng
+*.heic
+*.heif
+*.avif
+
+# Model files and machine learning artifacts
+*.pt
+*.pth
+*.ckpt
+*.pkl
+*.pickle
+*.h5
+*.hdf5
+*.pb
+*.onnx
+*.tflite
+*.trt
+*.torch
+*.model
+*.bin
+*.safetensors
+*.params
+
+# Dataset files
+*.csv
+*.xls
+*.xlsx
+*.json
+*.xml
+*.yaml
+*.yml
+*.txt
+*.zip
+*.tar
+*.tar.gz
+*.rar
+*.7z
+
+# Training artifacts
+*.log
+*.ckpt.*
+*.epoch*
+*.step*
+*.metrics*
+*.events.*
+*.tfevents.*
+*.graph.*
+
+# Cache and temporary files
+.cache/
+tmp/
+temp/
+*.tmp
+*.temp
+*.swp
+*.swo
+*~
+*.pyc
+
+# Security and configuration
+.env*
+logs/
+*.log
+
+# OS specific
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# IDE specific
+.vscode/
+*.sublime-project
+*.sublime-workspace

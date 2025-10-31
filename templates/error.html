@@ -1,0 +1,78 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="main-container fade-in">
+    <div class="container">
+        <div class="row justify-content-center">
+            <div class="col-lg-8">
+                <div class="text-center mb-5">
+                    <i class="fas fa-exclamation-triangle fa-5x text-warning mb-4 float-animation"></i>
+                    <h1 class="display-4 fw-bold mb-3">处理失败</h1>
+                    <p class="lead text-muted">很抱歉，在处理您的图片时遇到了问题</p>
+                </div>
+
+                <div class="card shadow-lg">
+                    <div class="card-body p-5">
+                        {% if error_message %}
+                        <div class="alert alert-danger" role="alert">
+                            <i class="fas fa-info-circle me-2"></i>
+                            <strong>错误信息：</strong>{{ error_message }}
+                        </div>
+                        {% endif %}
+
+                        <div class="row g-4 mt-4">
+                            <div class="col-md-6">
+                                <div class="text-center">
+                                    <i class="fas fa-image fa-3x text-primary mb-3"></i>
+                                    <h5 class="fw-semibold">图片格式问题</h5>
+                                    <p class="text-muted">请确保上传的是有效的图片文件（JPG, PNG, WEBP等格式）</p>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="text-center">
+                                    <i class="fas fa-file fa-3x text-info mb-3"></i>
+                                    <h5 class="fw-semibold">文件大小问题</h5>
+                                    <p class="text-muted">图片文件大小不能超过16MB，请尝试压缩或选择更小的图片</p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="text-center mt-5">
+                            <div class="btn-group d-flex flex-column flex-md-row gap-3 justify-content-center">
+                                <a href="/" class="btn btn-primary btn-lg px-5">
+                                    <i class="fas fa-upload me-2"></i>重新上传
+                                </a>
+                                <a href="/about" class="btn btn-outline-secondary btn-lg px-4">
+                                    <i class="fas fa-info-circle me-2"></i>了解更多
+                                </a>
+                            </div>
+                        </div>
+
+                        <div class="mt-4 text-center">
+                            <small class="text-muted">
+                                <i class="fas fa-lightbulb me-2"></i>
+                                <strong>提示：</strong>如果问题持续存在，请尝试刷新页面或使用不同的图片
+                            </small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // 自动隐藏toast通知
+    setTimeout(() => {
+        const toastElements = document.querySelectorAll('.toast');
+        toastElements.forEach(toast => {
+            if (toast) {
+                toast.style.opacity = '0';
+                setTimeout(() => toast.remove(), 300);
+            }
+        });
+    }, 5000);
+});
+</script>
+{% endblock %}

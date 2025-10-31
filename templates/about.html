@@ -1,0 +1,267 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="main-container fade-in">
+    <!-- 标题区域 -->
+    <div class="text-center mb-5">
+        <div class="mb-4">
+            <i class="fas fa-info-circle fa-4x mb-4 float-animation" style="color: var(--primary-color);"></i>
+        </div>
+        <h1 class="display-4 fw-bold">关于 YOLO 目标检测</h1>
+        <p class="lead text-muted fs-5">基于深度学习的实时目标检测系统</p>
+    </div>
+
+    <!-- 项目介绍 -->
+    <div class="row g-4 mb-5">
+        <div class="col-lg-8 mx-auto">
+            <div class="card">
+                <div class="card-body p-5">
+                    <h5 class="card-title fw-bold mb-4">
+                        <i class="fas fa-rocket me-2" style="color: var(--primary-color);"></i>
+                        项目简介
+                    </h5>
+                    <p class="card-text mb-4">
+                        YOLO 目标检测系统是一个基于先进深度学习技术的实时目标检测Web应用。
+                        该项目集成了 YOLOv5、YOLOv8 和 YOLOv11 等最新的目标检测模型，
+                        为用户提供快速、准确的目标检测服务。
+                    </p>
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <div class="d-flex align-items-center mb-3">
+                                <div class="feature-icon me-3" style="width: 50px; height: 50px; font-size: 1.2rem;">
+                                    <i class="fas fa-bolt"></i>
+                                </div>
+                                <div>
+                                    <h6 class="fw-semibold mb-1">实时检测</h6>
+                                    <p class="text-muted small mb-0">毫秒级响应，实时处理</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="d-flex align-items-center mb-3">
+                                <div class="feature-icon me-3" style="width: 50px; height: 50px; font-size: 1.2rem;">
+                                    <i class="fas fa-brain"></i>
+                                </div>
+                                <div>
+                                    <h6 class="fw-semibold mb-1">智能识别</h6>
+                                    <p class="text-muted small mb-0">80+ 种目标类别识别</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="d-flex align-items-center mb-3">
+                                <div class="feature-icon me-3" style="width: 50px; height: 50px; font-size: 1.2rem;">
+                                    <i class="fas fa-cogs"></i>
+                                </div>
+                                <div>
+                                    <h6 class="fw-semibold mb-1">多模型支持</h6>
+                                    <p class="text-muted small mb-0">YOLOv5/v8/v11 全系列</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="d-flex align-items-center mb-3">
+                                <div class="feature-icon me-3" style="width: 50px; height: 50px; font-size: 1.2rem;">
+                                    <i class="fas fa-sliders-h"></i>
+                                </div>
+                                <div>
+                                    <h6 class="fw-semibold mb-1">灵活配置</h6>
+                                    <p class="text-muted small mb-0">可调参数，精准控制</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 技术栈 -->
+    <div class="row g-4 mb-5">
+        <div class="col-lg-10 mx-auto">
+            <div class="card">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="card-title mb-0 fw-bold">
+                        <i class="fas fa-code me-2"></i>技术架构
+                    </h5>
+                </div>
+                <div class="card-body p-5">
+                    <div class="row g-4">
+                        <div class="col-md-4">
+                            <div class="text-center">
+                                <div class="mb-3">
+                                    <i class="fab fa-python fa-3x" style="color: #3776ab;"></i>
+                                </div>
+                                <h6 class="fw-semibold">Python</h6>
+                                <p class="text-muted small">后端开发语言</p>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="text-center">
+                                <div class="mb-3">
+                                    <i class="fas fa-flask fa-3x" style="color: #000000;"></i>
+                                </div>
+                                <h6 class="fw-semibold">Flask</h6>
+                                <p class="text-muted small">Web框架</p>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="text-center">
+                                <div class="mb-3">
+                                    <i class="fas fa-fire fa-3x" style="color: #ff6f00;"></i>
+                                </div>
+                                <h6 class="fw-semibold">PyTorch</h6>
+                                <p class="text-muted small">深度学习框架</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="row g-4 mt-2">
+                        <div class="col-md-4">
+                            <div class="text-center">
+                                <div class="mb-3">
+                                    <i class="fab fa-bootstrap fa-3x" style="color: #7952b3;"></i>
+                                </div>
+                                <h6 class="fw-semibold">Bootstrap 5</h6>
+                                <p class="text-muted small">前端UI框架</p>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="text-center">
+                                <div class="mb-3">
+                                    <i class="fas fa-eye fa-3x" style="color: var(--primary-color);"></i>
+                                </div>
+                                <h6 class="fw-semibold">OpenCV</h6>
+                                <p class="text-muted small">计算机视觉</p>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="text-center">
+                                <div class="mb-3">
+                                    <i class="fas fa-robot fa-3x" style="color: #00bcd4;"></i>
+                                </div>
+                                <h6 class="fw-semibold">Ultralytics</h6>
+                                <p class="text-muted small">YOLO框架</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 使用指南 -->
+    <div class="row g-4 mb-5">
+        <div class="col-lg-10 mx-auto">
+            <div class="card">
+                <div class="card-header bg-success text-white">
+                    <h5 class="card-title mb-0 fw-bold">
+                        <i class="fas fa-book me-2"></i>使用指南
+                    </h5>
+                </div>
+                <div class="card-body p-5">
+                    <div class="row g-4">
+                        <div class="col-md-6">
+                            <div class="d-flex">
+                                <div class="flex-shrink-0">
+                                    <div class="badge bg-primary rounded-circle p-3" style="width: 50px; height: 50px;">
+                                        <span class="fw-bold">1</span>
+                                    </div>
+                                </div>
+                                <div class="flex-grow-1 ms-3">
+                                    <h6 class="fw-semibold">上传图片</h6>
+                                    <p class="text-muted small mb-0">
+                                        点击选择或拖拽图片到上传区域，支持 JPG、PNG、WEBP 格式。
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="d-flex">
+                                <div class="flex-shrink-0">
+                                    <div class="badge bg-primary rounded-circle p-3" style="width: 50px; height: 50px;">
+                                        <span class="fw-bold">2</span>
+                                    </div>
+                                </div>
+                                <div class="flex-grow-1 ms-3">
+                                    <h6 class="fw-semibold">选择模型</h6>
+                                    <p class="text-muted small mb-0">
+                                        根据需要选择合适的 YOLO 模型，调节置信度和 IOU 阈值。
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="d-flex">
+                                <div class="flex-shrink-0">
+                                    <div class="badge bg-primary rounded-circle p-3" style="width: 50px; height: 50px;">
+                                        <span class="fw-bold">3</span>
+                                    </div>
+                                </div>
+                                <div class="flex-grow-1 ms-3">
+                                    <h6 class="fw-semibold">开始检测</h6>
+                                    <p class="text-muted small mb-0">
+                                        点击"开始检测"按钮，系统将自动处理图片并显示检测结果。
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="d-flex">
+                                <div class="flex-shrink-0">
+                                    <div class="badge bg-primary rounded-circle p-3" style="width: 50px; height: 50px;">
+                                        <span class="fw-bold">4</span>
+                                    </div>
+                                </div>
+                                <div class="flex-grow-1 ms-3">
+                                    <h6 class="fw-semibold">查看结果</h6>
+                                    <p class="text-muted small mb-0">
+                                        查看检测统计、详细分析，可下载或分享检测结果。
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 版本信息 -->
+    <div class="row g-4">
+        <div class="col-lg-8 mx-auto">
+            <div class="card bg-light">
+                <div class="card-body p-4 text-center">
+                    <h6 class="fw-semibold mb-3">版本信息</h6>
+                    <div class="row g-2">
+                        <div class="col-6 col-md-3">
+                            <small class="text-muted">YOLOv11</small>
+                            <div class="fw-bold">Latest</div>
+                        </div>
+                        <div class="col-6 col-md-3">
+                            <small class="text-muted">YOLOv8</small>
+                            <div class="fw-bold">Latest</div>
+                        </div>
+                        <div class="col-6 col-md-3">
+                            <small class="text-muted">YOLOv5</small>
+                            <div class="fw-bold">Latest</div>
+                        </div>
+                        <div class="col-6 col-md-3">
+                            <small class="text-muted">Web App</small>
+                            <div class="fw-bold">v2.0</div>
+                        </div>
+                    </div>
+                    <hr class="my-3">
+                    <p class="text-muted small mb-0">
+                        <i class="fas fa-code-branch me-1"></i>
+                        基于最新的 Ultralytics YOLO 框架构建 |
+                        <i class="fas fa-shield-alt me-1 ms-2"></i>
+                        企业级安全保障 |
+                        <i class="fas fa-mobile-alt me-1 ms-2"></i>
+                        全设备兼容
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
