@@ -102,3 +102,7 @@ desktop.ini
 .vscode/
 *.sublime-project
 *.sublime-workspace
+
+# Don't ignore
+!requirements.txt
+!requirement.txt
