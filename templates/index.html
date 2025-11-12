@@ -666,7 +666,7 @@ document.addEventListener('DOMContentLoaded', function() {
         // 文件选择点击处理函数
         function handleSelectFileClick(e) {
             e.preventDefault();
-            e.stopPropagation();
+            e.stopPropagation(); // 防止事件冒泡到上传区域
             console.log('选择文件按钮被点击');
 
             // 检查文件输入框是否存在
@@ -679,19 +679,9 @@ document.addEventListener('DOMContentLoaded', function() {
             try {
                 console.log('准备打开文件选择对话框');
 
-                // 方法1：直接点击
+                // 直接点击文件输入框
                 fileInput.click();
-                console.log('文件选择对话框已打开（方法1）');
-
-                // 备用方法：如果直接点击不起作用，使用延迟
-                setTimeout(() => {
-                    if (fileInput.files.length === 0) {
-                        console.log('尝试备用方法打开文件选择对话框');
-                        fileInput.focus();
-                        fileInput.click();
-                        console.log('文件选择对话框已打开（备用方法）');
-                    }
-                }, 100);
+                console.log('文件选择对话框已打开');
 
             } catch (error) {
                 console.error('打开文件选择对话框失败:', error);
@@ -715,7 +705,8 @@ document.addEventListener('DOMContentLoaded', function() {
                 }
 
                 e.preventDefault();
-                console.log('上传区域被点击');
+                e.stopPropagation(); // 防止事件冒泡
+                console.log('上传区域被点击（非按钮区域）');
                 try {
                     fileInput.click();
                 } catch (error) {
