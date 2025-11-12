@@ -344,6 +344,9 @@ document.addEventListener('DOMContentLoaded', function() {
 
 // 表单提交处理
 document.getElementById('uploadForm').addEventListener('submit', function(e) {
+    console.log('表单提交开始');
+    // 不阻止默认提交，让表单正常提交
+
     const uploadBtn = document.getElementById('uploadBtn');
     const uploadBtnText = document.getElementById('uploadBtnText');
     const uploadSpinner = document.getElementById('uploadSpinner');
@@ -351,11 +354,20 @@ document.getElementById('uploadForm').addEventListener('submit', function(e) {
     const progressBar = document.getElementById('progressBar');
     const progressText = document.getElementById('progressText');
 
+    // 验证是否有文件
+    const fileInput = document.getElementById('fileInput');
+    if (!fileInput || !fileInput.files || !fileInput.files[0]) {
+        showToast('error', '请先选择要上传的图片', 'error');
+        return;
+    }
+
+    console.log('开始上传文件:', fileInput.files[0].name);
+
     // 显示加载状态
-    uploadBtn.disabled = true;
-    uploadBtnText.style.display = 'none';
-    uploadSpinner.style.display = 'inline-block';
-    progressContainer.style.display = 'block';
+    if (uploadBtn) uploadBtn.disabled = true;
+    if (uploadBtnText) uploadBtnText.style.display = 'none';
+    if (uploadSpinner) uploadSpinner.style.display = 'inline-block';
+    if (progressContainer) progressContainer.style.display = 'block';
 
     // 添加波纹效果
     createRipple(e);
@@ -369,47 +381,69 @@ document.getElementById('uploadForm').addEventListener('submit', function(e) {
         progress += Math.random() * 15;
         if (progress > 90) progress = 90;
 
-        progressBar.style.width = progress + '%';
+        if (progressBar) progressBar.style.width = progress + '%';
 
         if (progress < 30) {
-            progressText.textContent = '正在上传图片...';
+            if (progressText) progressText.textContent = '正在上传图片...';
         } else if (progress < 60) {
-            progressText.textContent = '正在加载模型...';
+            if (progressText) progressText.textContent = '正在加载模型...';
         } else if (progress < 90) {
-            progressText.textContent = '正在进行目标检测...';
+            if (progressText) progressText.textContent = '正在进行目标检测...';
         }
     }, 200);
 
     // 获取配置参数
-    const model = document.getElementById('modelSelect').value;
-    const confidence = document.getElementById('confidenceInput').value;
-    const iou = document.getElementById('iouInput').value;
+    const modelSelect = document.getElementById('modelSelect');
+    const confidenceInput = document.getElementById('confidenceInput');
+    const iouInput = document.getElementById('iouInput');
 
-    // 创建隐藏输入字段
-    let modelInput = document.createElement('input');
-    modelInput.type = 'hidden';
-    modelInput.name = 'model';
-    modelInput.value = model;
-    this.appendChild(modelInput);
+    const model = modelSelect ? modelSelect.value : 'yolo11n.pt';
+    const confidence = confidenceInput ? confidenceInput.value : '0.25';
+    const iou = iouInput ? iouInput.value : '0.45';
 
-    let confidenceInput = document.createElement('input');
-    confidenceInput.type = 'hidden';
-    confidenceInput.name = 'confidence';
-    confidenceInput.value = confidence;
-    this.appendChild(confidenceInput);
+    console.log('配置参数:', { model, confidence, iou });
 
-    let iouInput = document.createElement('input');
-    iouInput.type = 'hidden';
-    iouInput.name = 'iou';
-    iouInput.value = iou;
-    this.appendChild(iouInput);
+    // 创建隐藏输入字段 - 先清理旧的
+    const existingHidden = this.querySelectorAll('input[type="hidden"]');
+    existingHidden.forEach(input => input.remove());
+
+    // 创建新的隐藏输入字段
+    const modelHidden = document.createElement('input');
+    modelHidden.type = 'hidden';
+    modelHidden.name = 'model';
+    modelHidden.value = model;
+    this.appendChild(modelHidden);
+
+    const confidenceHidden = document.createElement('input');
+    confidenceHidden.type = 'hidden';
+    confidenceHidden.name = 'confidence';
+    confidenceHidden.value = confidence;
+    this.appendChild(confidenceHidden);
+
+    const iouHidden = document.createElement('input');
+    iouHidden.type = 'hidden';
+    iouHidden.name = 'iou';
+    iouHidden.value = iou;
+    this.appendChild(iouHidden);
+
+    console.log('隐藏字段已添加，准备提交表单');
+
+    // 创建FormData对象
+    const formData = new FormData(this);
+    console.log('表单验证完成，准备提交');
+
+    // 使用传统表单提交方式
+    // 移除preventDefault以允许正常表单提交
+    setTimeout(() => {
+        this.submit(); // 使用原生表单提交
+    }, 100);
 
     // 设置超时，防止进度条无限运行
     setTimeout(() => {
         clearInterval(progressInterval);
-        progressBar.style.width = '100%';
-        progressText.textContent = '检测完成！';
-    }, 3000);
+        if (progressBar) progressBar.style.width = '100%';
+        if (progressText) progressText.textContent = '处理中...';
+    }, 10000); // 增加超时时间到10秒
 });
 
 // 创建波纹效果
@@ -495,36 +529,78 @@ document.addEventListener('keydown', function(e) {
 
 // 文件处理函数（用于拖拽上传）
 function handleFile(file) {
+    console.log('开始处理文件:', file ? file.name : 'null');
+
     if (!file) {
+        console.error('文件为空');
+        showToast('error', '没有选择文件', 'error');
         return false;
     }
 
-    // 验证文件类型
-    const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
-    if (!allowedTypes.includes(file.type)) {
-        showToast('error', '不支持的文件类型，请选择 JPG、PNG 或 WEBP 图片', 'error');
+    console.log('文件信息:', {
+        name: file.name,
+        type: file.type,
+        size: file.size
+    });
+
+    // 验证文件类型 - 更宽松的检查
+    const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp', 'image/bmp', 'image/gif'];
+    const allowedExtensions = ['.jpg', '.jpeg', '.png', '.webp', '.bmp', '.gif'];
+    const fileExtension = file.name.toLowerCase().substring(file.name.lastIndexOf('.'));
+
+    if (!allowedTypes.includes(file.type) && !allowedExtensions.includes(fileExtension)) {
+        console.error('不支持的文件类型:', file.type, '扩展名:', fileExtension);
+        showToast('error', `不支持的文件类型 (${file.type || fileExtension})，请选择 JPG、PNG、WEBP、BMP 或 GIF 图片`, 'error');
         return false;
     }
 
     // 验证文件大小 (最大16MB)
-    if (file.size > 16 * 1024 * 1024) {
-        showToast('error', '文件大小不能超过 16MB', 'error');
+    const maxSize = 16 * 1024 * 1024;
+    if (file.size > maxSize) {
+        console.error('文件过大:', file.size, '最大允许:', maxSize);
+        showToast('error', `文件大小不能超过 16MB，当前文件大小: ${(file.size / 1024 / 1024).toFixed(2)}MB`, 'error');
         return false;
     }
 
     // 启用上传按钮
-    document.getElementById('uploadBtn').disabled = false;
+    const uploadBtn = document.getElementById('uploadBtn');
+    if (uploadBtn) {
+        uploadBtn.disabled = false;
+        console.log('上传按钮已启用');
+    } else {
+        console.error('找不到上传按钮');
+    }
 
     // 显示预览
     const reader = new FileReader();
     reader.onload = function(e) {
-        const previewImg = document.getElementById('previewImage');
-        previewImg.src = e.target.result;
-        document.getElementById('previewContainer').style.display = 'block';
-        document.getElementById('previewContainer').classList.add('fade-in');
-        showToast('success', '图片已成功加载', 'success');
+        try {
+            const previewImg = document.getElementById('previewImage');
+            const previewContainer = document.getElementById('previewContainer');
+
+            if (previewImg && previewContainer) {
+                previewImg.src = e.target.result;
+                previewContainer.style.display = 'block';
+                previewContainer.classList.add('fade-in');
+                console.log('图片预览已显示');
+                showToast('success', `图片已成功加载: ${file.name}`, 'success');
+            } else {
+                console.error('找不到预览元素');
+                showToast('error', '预览显示失败', 'error');
+            }
+        } catch (error) {
+            console.error('显示预览时出错:', error);
+            showToast('error', '预览显示失败', 'error');
+        }
     };
+
+    reader.onerror = function(error) {
+        console.error('读取文件失败:', error);
+        showToast('error', '文件读取失败', 'error');
+    };
+
     reader.readAsDataURL(file);
+    console.log('开始读取文件数据');
 
     return true;
 }
@@ -538,6 +614,13 @@ document.addEventListener('DOMContentLoaded', function() {
     const selectBtn = document.getElementById('selectFileBtn');
     const uploadArea = document.getElementById('uploadArea');
     const modelSelect = document.getElementById('modelSelect');
+
+    // 调试信息：检查关键元素是否存在
+    console.log('DOM元素检查结果:');
+    console.log('- fileInput:', fileInput ? '✅ 找到' : '❌ 未找到');
+    console.log('- selectBtn:', selectBtn ? '✅ 找到' : '❌ 未找到');
+    console.log('- uploadArea:', uploadArea ? '✅ 找到' : '❌ 未找到');
+    console.log('- modelSelect:', modelSelect ? '✅ 找到' : '❌ 未找到');
 
     // 初始化拖拽功能
     if (uploadArea && fileInput) {
@@ -570,43 +653,105 @@ document.addEventListener('DOMContentLoaded', function() {
         // 为选择文件按钮添加点击事件
         const selectFileBtn = document.getElementById('selectFileBtn');
         if (selectFileBtn) {
-            selectFileBtn.addEventListener('click', function(e) {
-                e.preventDefault();
-                e.stopPropagation();
-                console.log('选择文件按钮被点击');
-                try {
-                    fileInput.click();
-                    console.log('文件选择对话框已打开');
-                } catch (error) {
-                    console.error('打开文件选择对话框失败:', error);
-                }
-            });
+            // 移除可能存在的旧事件监听器
+            selectFileBtn.removeEventListener('click', handleSelectFileClick);
+
+            // 添加新的事件监听器
+            selectFileBtn.addEventListener('click', handleSelectFileClick);
             console.log('✅ 选择文件按钮点击事件初始化完成');
+        } else {
+            console.error('❌ 找不到选择文件按钮');
         }
 
-        // 为整个上传区域添加点击事件（排除按钮区域）
+        // 文件选择点击处理函数
+        function handleSelectFileClick(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            console.log('选择文件按钮被点击');
+
+            // 检查文件输入框是否存在
+            if (!fileInput) {
+                console.error('文件输入框不存在');
+                showToast('error', '文件输入组件初始化失败', 'error');
+                return;
+            }
+
+            try {
+                console.log('准备打开文件选择对话框');
+
+                // 方法1：直接点击
+                fileInput.click();
+                console.log('文件选择对话框已打开（方法1）');
+
+                // 备用方法：如果直接点击不起作用，使用延迟
+                setTimeout(() => {
+                    if (fileInput.files.length === 0) {
+                        console.log('尝试备用方法打开文件选择对话框');
+                        fileInput.focus();
+                        fileInput.click();
+                        console.log('文件选择对话框已打开（备用方法）');
+                    }
+                }, 100);
+
+            } catch (error) {
+                console.error('打开文件选择对话框失败:', error);
+                showToast('error', '无法打开文件选择对话框', 'error');
+            }
+        }
+
+        // 为整个上传区域添加点击事件（排除按钮区域和配置区域）
         if (uploadArea) {
             uploadArea.addEventListener('click', function(e) {
-                // 如果点击的不是选择文件按钮，才触发文件选择
-                if (!e.target.closest('#selectFileBtn')) {
-                    e.preventDefault();
-                    console.log('上传区域被点击');
-                    try {
-                        fileInput.click();
-                    } catch (error) {
-                        console.error('打开文件选择对话框失败:', error);
-                    }
+                // 如果点击的是选择文件按钮、配置区域或其他交互元素，则不触发文件选择
+                if (e.target.closest('#selectFileBtn') ||
+                    e.target.closest('.config-section') ||
+                    e.target.closest('button') ||
+                    e.target.closest('select') ||
+                    e.target.closest('input') ||
+                    e.target.tagName === 'BUTTON' ||
+                    e.target.tagName === 'SELECT' ||
+                    e.target.tagName === 'INPUT') {
+                    return;
+                }
+
+                e.preventDefault();
+                console.log('上传区域被点击');
+                try {
+                    fileInput.click();
+                } catch (error) {
+                    console.error('打开文件选择对话框失败:', error);
+                    showToast('error', '无法打开文件选择对话框', 'error');
                 }
             });
             console.log('✅ 上传区域点击事件初始化完成');
+        } else {
+            console.error('❌ 找不到上传区域');
         }
 
         // 文件输入变化事件
         fileInput.addEventListener('change', function(e) {
+            console.log('文件输入发生变化');
             const file = e.target.files[0];
             if (file) {
                 console.log('✅ 文件选择成功:', file.name);
-                handleFile(file);
+                const success = handleFile(file);
+                if (!success) {
+                    // 如果文件处理失败，清空文件输入
+                    e.target.value = '';
+                    console.log('文件处理失败，已清空文件输入');
+                }
+            } else {
+                console.log('没有选择文件');
+                // 禁用上传按钮
+                const uploadBtn = document.getElementById('uploadBtn');
+                if (uploadBtn) {
+                    uploadBtn.disabled = true;
+                }
+                // 隐藏预览
+                const previewContainer = document.getElementById('previewContainer');
+                if (previewContainer) {
+                    previewContainer.style.display = 'none';
+                }
             }
         });
 

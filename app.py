@@ -11,7 +11,7 @@ from flask_limiter.util import get_remote_address
 from typing import Optional
 
 # Initialize Flask app
-app = Flask(__name__)
+app = Flask(__name__, static_folder='static', static_url_path='/static')
 
 # Load configuration
 config = get_config()
