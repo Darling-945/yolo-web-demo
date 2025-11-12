@@ -9,7 +9,9 @@
 - 🎨 **美观界面** - 现代化的响应式设计
 - 📱 **移动端友好** - 完美适配各种屏幕尺寸
 - 🔧 **多模型支持** - 支持 YOLOv5/v8/v11 系列模型
-- ⚙️ **可配置参数** - 可调节置信度阈值
+- 🔄 **多格式支持** - 支持 PyTorch(.pt)、ONNX(.onnx)、TensorRT(.engine) 格式
+- 🔄 **模型转换** - 内置转换工具，PyTorch转ONNX格式
+- ⚙️ **可配置参数** - 可调节置信度阈值和IOU阈值
 - 📊 **详细结果** - 显示检测统计和详细信息
 - 🖱️ **拖拽上传** - 支持拖拽文件上传
 - 🔄 **实时预览** - 上传前预览图片
@@ -174,12 +176,44 @@ python run.py --manage template
 4. **开始检测**：点击"检测目标"按钮
 5. **查看结果**：在结果页面查看原始图片和检测结果
 
+### 模型转换
+
+项目内置了模型转换工具，支持将PyTorch模型(.pt)转换为ONNX格式(.onnx)：
+
+#### 基本转换
+
+```bash
+# 转换单个模型
+python convert_models.py --input yolo11n.pt
+
+# 批量转换
+python convert_models.py --input-dir models --output-dir onnx_models
+
+# 查看帮助
+python convert_models.py --help
+```
+
+#### 转换优势
+
+- **ONNX格式**：CPU推理性能优化，适合部署
+- **跨平台兼容**：支持多种操作系统和硬件
+- **文件大小**：通常比PyTorch模型更大但推理更快
+
+详细使用方法请参考：[模型转换说明](models/README.md#模型转换从pytorch到onnx)
+
 ### 支持的模型
 
-- **YOLOv11 系列**：nano、small、medium、large、extra-large
-- **YOLOv8 系列**：nano、small、medium、large、extra-large
-- **YOLOv5 系列**：nano、small、medium、large、extra-large
-- **自定义模型**：用户训练的YOLO模型（.pt格式）
+#### 预定义模型
+
+- **YOLOv11 系列**：nano、small、medium、large、extra-large (PyTorch格式)
+- **YOLOv8 系列**：nano、small、medium、large、extra-large (PyTorch格式)
+- **YOLOv5 系列**：nano、small、medium、large、extra-large (PyTorch格式)
+
+#### 自定义模型
+
+- **PyTorch模型(.pt)**：标准的Ultralytics YOLO模型
+- **ONNX模型(.onnx)**：从PyTorch转换的优化模型
+- **TensorRT模型(.engine)**：NVIDIA GPU加速模型
 
 ### 置信度阈值
 
@@ -280,13 +314,17 @@ GET /api/models
 yolov5-web-demo/
 ├── run.py                 # 统一运行脚本（包含配置系统）
 ├── app.py                 # Flask 主应用
-├── model_inference.py     # YOLO 推理模块
+├── model_inference.py     # YOLO 推理模块（支持多格式）
+├── convert_models.py      # 模型转换工具（PyTorch转ONNX）
 ├── utils.py               # 工具函数
 ├── requirements.txt       # Python 依赖
 ├── .env                   # 环境配置文件（自动生成）
 ├── config_template.env    # 配置模板（多设备部署用）
 ├── models/               # 自定义模型目录
-│   └── README.md         # 自定义模型说明
+│   ├── README.md         # 自定义模型使用说明
+│   ├── *.pt              # PyTorch模型文件
+│   ├── *.onnx            # ONNX模型文件
+│   └── *.engine          # TensorRT模型文件
 ├── static/               # 静态文件
 │   ├── uploads/          # 上传文件目录
 │   └── outputs/          # 输出文件目录

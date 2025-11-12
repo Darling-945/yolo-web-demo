@@ -1,12 +1,13 @@
 """
 Model inference module for YOLO object detection
 Supports YOLOv5, YOLOv8, and YOLOv11 models through Ultralytics
+Extended support for ONNX and TensorRT model formats
 """
 import cv2
 import numpy as np
 from ultralytics import YOLO
 import os
-from typing import List, Dict, Tuple
+from typing import List, Dict, Tuple, Optional
 import logging
 
 # Set up logging
@@ -17,13 +18,14 @@ logger = logging.getLogger(__name__)
 class YOLOInference:
     """
     YOLO Inference class to handle object detection
+    Supports PyTorch (.pt), ONNX (.onnx), and TensorRT (.engine) models
     """
     def __init__(self, model_path: str = 'yolo11n.pt', conf_threshold: float = 0.25, iou_threshold: float = 0.45):
         """
         Initialize the YOLO model
 
         Args:
-            model_path (str): Path to YOLO model file or model name
+            model_path (str): Path to YOLO model file or model name (.pt, .onnx, .engine)
             conf_threshold (float): Confidence threshold for detections
             iou_threshold (float): IOU threshold for non-maximum suppression
         """
@@ -31,27 +33,48 @@ class YOLOInference:
         self.conf_threshold = conf_threshold
         self.iou_threshold = iou_threshold
         self.model = None
+        self.model_format = self._detect_model_format(model_path)
         self.load_model()
 
+    def _detect_model_format(self, model_path: str) -> str:
+        """Detect model format from file extension"""
+        if model_path.endswith('.onnx'):
+            return 'onnx'
+        elif model_path.endswith('.engine'):
+            return 'tensorrt'
+        else:
+            return 'pytorch'  # .pt files or default
+
     def load_model(self):
-        """Load the YOLO model"""
+        """Load the YOLO model with format-specific optimizations"""
         try:
             # Check if model is a custom model in models directory
             models_dir = os.path.join(os.path.dirname(__file__), 'models')
             custom_model_path = os.path.join(models_dir, self.model_path)
 
-            if os.path.exists(custom_model_path):
-                # Load custom model from models directory
-                logger.info(f"Loading custom model: {self.model_path}")
-                self.model = YOLO(custom_model_path)
-            else:
-                # Load predefined model (will be downloaded if not exists)
-                logger.info(f"Loading predefined model: {self.model_path}")
-                self.model = YOLO(self.model_path)
+            model_file = custom_model_path if os.path.exists(custom_model_path) else self.model_path
 
-            logger.info("Model loaded successfully")
+            # Format-specific loading
+            if self.model_format == 'onnx':
+                logger.info(f"Loading ONNX model: {self.model_path}")
+                self.model = YOLO(model_file, task='detect')
+                # ONNX optimizations
+                logger.info("ONNX model loaded with CPU optimizations")
+            elif self.model_format == 'tensorrt':
+                logger.info(f"Loading TensorRT model: {self.model_path}")
+                self.model = YOLO(model_file, task='detect')
+                # TensorRT optimizations
+                logger.info("TensorRT model loaded with GPU optimizations")
+            else:  # PyTorch
+                if os.path.exists(custom_model_path):
+                    logger.info(f"Loading custom PyTorch model: {self.model_path}")
+                else:
+                    logger.info(f"Loading predefined PyTorch model: {self.model_path}")
+                self.model = YOLO(model_file)
+
+            logger.info(f"Model loaded successfully ({self.model_format} format)")
         except Exception as e:
-            logger.error(f"Failed to load model {self.model_path}: {str(e)}")
+            logger.error(f"Failed to load model {self.model_path} ({self.model_format}): {str(e)}")
             raise
 
     def detect(self, image_path: str, output_path: str) -> Dict:
@@ -241,15 +264,15 @@ class YOLOInference:
 yolo_inference = YOLOInference(iou_threshold=0.45)
 
 
-def get_available_models() -> Dict[str, List[str]]:
+def get_available_models() -> Dict[str, Dict[str, List[str]]]:
     """
-    Get a list of all available models including custom models
+    Get a list of all available models including custom models in different formats
 
     Returns:
-        dict: Dictionary containing predefined models and custom models
+        dict: Dictionary containing predefined models and custom models by format
     """
-    # Predefined models
-    predefined_models = [
+    # Predefined PyTorch models
+    predefined_pytorch = [
         'yolo11n.pt',      # YOLOv11 Nano
         'yolo11s.pt',      # YOLOv11 Small
         'yolo11m.pt',      # YOLOv11 Medium
@@ -267,18 +290,31 @@ def get_available_models() -> Dict[str, List[str]]:
         'yolov5x.pt',      # YOLOv5 Extra Large
     ]
 
-    # Get custom models from models directory
-    custom_models = []
+    # Get custom models from models directory by format
+    custom_pytorch = []
+    custom_onnx = []
+    custom_tensorrt = []
+
     models_dir = os.path.join(os.path.dirname(__file__), 'models')
 
     if os.path.exists(models_dir):
         for file in os.listdir(models_dir):
             if file.endswith('.pt'):
-                custom_models.append(file)
+                custom_pytorch.append(file)
+            elif file.endswith('.onnx'):
+                custom_onnx.append(file)
+            elif file.endswith('.engine'):
+                custom_tensorrt.append(file)
 
     return {
-        'predefined_models': predefined_models,
-        'custom_models': custom_models
+        'predefined_models': {
+            'pytorch': predefined_pytorch
+        },
+        'custom_models': {
+            'pytorch': custom_pytorch,
+            'onnx': custom_onnx,
+            'tensorrt': custom_tensorrt
+        }
     }
 
 

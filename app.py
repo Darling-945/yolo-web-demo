@@ -198,7 +198,7 @@ def api_detect():
 @app.route('/api/models', methods=['GET'])
 @limiter.exempt  # No rate limiting for models endpoint (read-only)
 def api_models():
-    """API endpoint to get available models"""
+    """API endpoint to get available models in different formats"""
     try:
         models_data = get_available_models()
         return {
@@ -207,7 +207,8 @@ def api_models():
             'custom_models': models_data['custom_models'],
             'default_model': config.DEFAULT_MODEL,
             'max_file_size': config.MAX_CONTENT_LENGTH,
-            'allowed_extensions': list(config.ALLOWED_EXTENSIONS)
+            'allowed_extensions': list(config.ALLOWED_EXTENSIONS),
+            'supported_formats': ['pytorch', 'onnx', 'tensorrt']
         }
     except Exception as e:
         logger.error(f"Error getting available models: {str(e)}")

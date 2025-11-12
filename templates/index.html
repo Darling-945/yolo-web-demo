@@ -61,29 +61,35 @@
                   <i class="fas fa-robot me-2"></i>选择模型
                 </label>
                 <select class="form-select mx-auto" id="modelSelect" name="model" style="max-width: 450px;">
-                  <optgroup label="YOLOv11 系列">
+                  <optgroup label="YOLOv11 系列 (PyTorch)">
                     <option value="yolo11n.pt">YOLOv11 Nano (最快)</option>
                     <option value="yolo11s.pt">YOLOv11 Small</option>
                     <option value="yolo11m.pt">YOLOv11 Medium</option>
                     <option value="yolo11l.pt">YOLOv11 Large</option>
                     <option value="yolo11x.pt">YOLOv11 Extra Large (最准确)</option>
                   </optgroup>
-                  <optgroup label="YOLOv8 系列">
+                  <optgroup label="YOLOv8 系列 (PyTorch)">
                     <option value="yolov8n.pt">YOLOv8 Nano</option>
                     <option value="yolov8s.pt">YOLOv8 Small</option>
                     <option value="yolov8m.pt">YOLOv8 Medium</option>
                     <option value="yolov8l.pt">YOLOv8 Large</option>
                     <option value="yolov8x.pt">YOLOv8 Extra Large</option>
                   </optgroup>
-                  <optgroup label="YOLOv5 系列">
+                  <optgroup label="YOLOv5 系列 (PyTorch)">
                     <option value="yolov5n.pt">YOLOv5 Nano</option>
                     <option value="yolov5s.pt">YOLOv5 Small</option>
                     <option value="yolov5m.pt">YOLOv5 Medium</option>
                     <option value="yolov5l.pt">YOLOv5 Large</option>
                     <option value="yolov5x.pt">YOLOv5 Extra Large</option>
                   </optgroup>
-                  <optgroup label="自定义模型" id="customModelsGroup" style="display: none;">
-                    <!-- 自定义模型将通过JavaScript动态添加 -->
+                  <optgroup label="自定义 PyTorch 模型" id="customPyTorchModelsGroup" style="display: none;">
+                    <!-- 自定义 PyTorch 模型将通过JavaScript动态添加 -->
+                  </optgroup>
+                  <optgroup label="自定义 ONNX 模型" id="customONNXModelsGroup" style="display: none;">
+                    <!-- 自定义 ONNX 模型将通过JavaScript动态添加 -->
+                  </optgroup>
+                  <optgroup label="自定义 TensorRT 模型" id="customTensorRTModelsGroup" style="display: none;">
+                    <!-- 自定义 TensorRT 模型将通过JavaScript动态添加 -->
                   </optgroup>
                 </select>
               </div>
@@ -230,20 +236,53 @@ async function loadCustomModels() {
         const response = await fetch('/api/models');
         const data = await response.json();
 
-        if (data.custom_models && data.custom_models.length > 0) {
-            const customGroup = document.getElementById('customModelsGroup');
-            customGroup.style.display = 'block';
+        // 处理自定义 PyTorch 模型
+        if (data.custom_models && data.custom_models.pytorch && data.custom_models.pytorch.length > 0) {
+            const customPyTorchGroup = document.getElementById('customPyTorchModelsGroup');
+            customPyTorchGroup.style.display = 'block';
+            customPyTorchGroup.innerHTML = '';
 
-            // 清空现有自定义模型选项
-            customGroup.innerHTML = '';
-
-            // 添加自定义模型选项
-            data.custom_models.forEach(model => {
+            data.custom_models.pytorch.forEach(model => {
                 const option = document.createElement('option');
                 option.value = model;
-                option.textContent = model.replace('.pt', '') + ' (自定义)';
-                customGroup.appendChild(option);
+                option.textContent = model.replace('.pt', '') + ' (自定义 PyTorch)';
+                customPyTorchGroup.appendChild(option);
             });
+        }
+
+        // 处理自定义 ONNX 模型
+        if (data.custom_models && data.custom_models.onnx && data.custom_models.onnx.length > 0) {
+            const customONNXGroup = document.getElementById('customONNXModelsGroup');
+            customONNXGroup.style.display = 'block';
+            customONNXGroup.innerHTML = '';
+
+            data.custom_models.onnx.forEach(model => {
+                const option = document.createElement('option');
+                option.value = model;
+                option.textContent = model.replace('.onnx', '') + ' (自定义 ONNX)';
+                option.setAttribute('data-format', 'onnx');
+                customONNXGroup.appendChild(option);
+            });
+        }
+
+        // 处理自定义 TensorRT 模型
+        if (data.custom_models && data.custom_models.tensorrt && data.custom_models.tensorrt.length > 0) {
+            const customTensorRTGroup = document.getElementById('customTensorRTModelsGroup');
+            customTensorRTGroup.style.display = 'block';
+            customTensorRTGroup.innerHTML = '';
+
+            data.custom_models.tensorrt.forEach(model => {
+                const option = document.createElement('option');
+                option.value = model;
+                option.textContent = model.replace('.engine', '') + ' (自定义 TensorRT)';
+                option.setAttribute('data-format', 'tensorrt');
+                customTensorRTGroup.appendChild(option);
+            });
+        }
+
+        // 显示支持的格式信息
+        if (data.supported_formats) {
+            console.log('支持的模型格式:', data.supported_formats.join(', '));
         }
     } catch (error) {
         console.log('无法加载自定义模型:', error);
