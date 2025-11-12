@@ -7,6 +7,7 @@ import cv2
 import numpy as np
 from ultralytics import YOLO
 import os
+import time
 from typing import List, Dict, Tuple, Optional
 import logging
 
@@ -105,9 +106,13 @@ class YOLOInference:
             img_height, img_width = img.shape[:2]
             logger.info(f"Processing image: {image_path} ({img_width}x{img_height})")
 
-            # Perform inference
+            # Perform inference with timing
             logger.info(f"Running inference with model {self.model_path}, conf={self.conf_threshold}, iou={self.iou_threshold}")
+            inference_start_time = time.time()
             results = self.model(img, conf=self.conf_threshold, iou=self.iou_threshold)
+            inference_end_time = time.time()
+            inference_time = inference_end_time - inference_start_time
+            logger.info(f"Inference completed in {inference_time:.4f} seconds")
 
             # Draw results on the image
             annotated_img = results[0].plot()
@@ -167,7 +172,9 @@ class YOLOInference:
                 'image_dimensions': {
                     'width': img_width,
                     'height': img_height
-                }
+                },
+                'inference_time': round(inference_time, 4),  # Add inference time in seconds
+                'model_format': self.model_format
             }
 
             result = {
@@ -201,8 +208,10 @@ class YOLOInference:
         if img is None:
             raise ValueError(f"Could not read image from {image_path}")
 
-        # Perform inference
+        # Perform inference with timing
+        inference_start_time = time.time()
         results = self.model(img, conf=self.conf_threshold, iou=self.iou_threshold)
+        inference_time = time.time() - inference_start_time
 
         # Draw results on the image
         annotated_img = results[0].plot()
@@ -237,7 +246,9 @@ class YOLOInference:
             'total_detections': len(detections),
             'detection_summary': detection_summary,
             'model_used': self.model_path,
-            'confidence_threshold': self.conf_threshold
+            'confidence_threshold': self.conf_threshold,
+            'inference_time': round(inference_time, 4),  # Add inference time in seconds
+            'model_format': self.model_format
         }
 
         result = {
