@@ -228,10 +228,19 @@ function formatFileSize(bytes) {
 function handleMultipleFileSubmit(event) {
     event.preventDefault();
 
+    console.log('=== Starting file submission ===');
+    console.log('Selected files:', selectedFilesInfo.length);
+
     if (selectedFilesInfo.length === 0) {
         showToast('error', '请先选择要上传的文件', 'error');
         return;
     }
+
+    // Log all selected files before processing
+    console.log('Files to be uploaded:');
+    selectedFilesInfo.forEach((fileInfo, index) => {
+        console.log(`${index + 1}. Name: ${fileInfo.name}, Type: ${fileInfo.type}, Size: ${fileInfo.sizeFormatted}, Extension: ${fileInfo.extension}`);
+    });
 
     const uploadBtn = document.getElementById('uploadBtn');
     const uploadBtnText = document.getElementById('uploadBtnText');
@@ -271,8 +280,17 @@ function handleMultipleFileSubmit(event) {
         body: formData
     })
     .then(response => {
+        console.log('=== RESPONSE ANALYSIS ===');
+        console.log('Response status:', response.status);
+        console.log('Response headers:', [...response.headers.entries()]);
+        console.log('Response ok:', response.ok);
+        console.log('Response URL:', response.url);
+
         if (!response.ok) {
-            throw new Error(`HTTP error! status: ${response.status}`);
+            return response.text().then(text => {
+                console.error('Error response body:', text);
+                throw new Error(`HTTP error! status: ${response.status}, body: ${text}`);
+            });
         }
         return response.text();
     })
@@ -284,7 +302,11 @@ function handleMultipleFileSubmit(event) {
         document.body.innerHTML = html;
     })
     .catch(error => {
-        console.error('处理失败:', error);
+        console.error('=== ERROR DETAILS ===');
+        console.error('Full error object:', error);
+        console.error('Error message:', error.message);
+        console.error('Error stack:', error.stack);
+        console.error('=== END ERROR DETAILS ===');
         showToast('error', '处理失败: ' + error.message, 'error');
         resetUploadState();
     });

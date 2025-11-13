@@ -591,22 +591,29 @@ function handleFile(file) {
         size: file.size
     });
 
-    // 验证文件类型 - 更宽松的检查
-    const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp', 'image/bmp', 'image/gif'];
-    const allowedExtensions = ['.jpg', '.jpeg', '.png', '.webp', '.bmp', '.gif'];
+    // 验证文件类型 - 支持图片和视频
+    const imageTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp', 'image/bmp', 'image/gif'];
+    const videoTypes = ['video/mp4', 'video/avi', 'video/quicktime', 'video/x-msvideo', 'video/x-matroska'];
+    const imageExtensions = ['.jpg', '.jpeg', '.png', '.webp', '.bmp', '.gif', '.tiff', '.tif'];
+    const videoExtensions = ['.mp4', '.avi', '.mov', '.mkv', '.wmv', '.flv', '.webm', '.m4v'];
+
+    const allTypes = [...imageTypes, ...videoTypes];
+    const allExtensions = [...imageExtensions, ...videoExtensions];
     const fileExtension = file.name.toLowerCase().substring(file.name.lastIndexOf('.'));
 
-    if (!allowedTypes.includes(file.type) && !allowedExtensions.includes(fileExtension)) {
+    if (!allTypes.includes(file.type) && !allExtensions.includes(fileExtension)) {
         console.error('不支持的文件类型:', file.type, '扩展名:', fileExtension);
-        showToast('error', `不支持的文件类型 (${file.type || fileExtension})，请选择 JPG、PNG、WEBP、BMP 或 GIF 图片`, 'error');
+        showToast('error', `不支持的文件类型 (${file.type || fileExtension})，请选择图片或视频文件`, 'error');
         return false;
     }
 
-    // 验证文件大小 (最大16MB)
-    const maxSize = 16 * 1024 * 1024;
+    // 验证文件大小 - 根据文件类型设置不同限制
+    const isVideo = videoTypes.includes(file.type) || videoExtensions.includes(fileExtension);
+    const maxSize = isVideo ? 500 * 1024 * 1024 : 50 * 1024 * 1024; // 视频500MB，图片50MB
     if (file.size > maxSize) {
         console.error('文件过大:', file.size, '最大允许:', maxSize);
-        showToast('error', `文件大小不能超过 16MB，当前文件大小: ${(file.size / 1024 / 1024).toFixed(2)}MB`, 'error');
+        const maxSizeMB = maxSize / (1024 * 1024);
+        showToast('error', `文件大小不能超过 ${maxSizeMB}MB，当前文件大小: ${(file.size / 1024 / 1024).toFixed(2)}MB`, 'error');
         return false;
     }
 
