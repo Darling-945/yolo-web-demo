@@ -20,15 +20,15 @@
            aria-label="图片上传区域，可以拖拽或点击选择图片文件"
            aria-describedby="upload-help">
         <i class="fas fa-cloud-upload-alt fa-3x mb-4" style="color: var(--primary-color);" aria-hidden="true"></i>
-        <h4 class="fw-semibold mb-3">拖拽图片到此处</h4>
+        <h4 class="fw-semibold mb-3">拖拽图片或视频到此处</h4>
         <p class="text-muted mb-4">或</p>
         <input type="file"
-               name="file"
-               accept=".jpg, .jpeg, .png, .webp, .bmp, .gif, .tiff, .tif"
+               name="files"
+               accept=".jpg, .jpeg, .png, .webp, .bmp, .gif, .tiff, .tif, .mp4, .avi, .mov, .mkv, .wmv, .flv, .webm, .m4v"
                class="form-control"
                id="fileInput"
-               required
-               aria-label="选择图片文件"
+               multiple
+               aria-label="选择图片或视频文件"
                style="display: none;">
         <button type="button"
                 class="btn btn-outline-primary px-5 py-3"
@@ -37,14 +37,23 @@
           <i class="fas fa-folder-open me-2"></i>点击选择文件
         </button>
         <p class="text-muted mt-4 mb-0" id="upload-help">
-          支持 JPG, JPEG, PNG, WEBP, BMP, GIF, TIFF 格式，最大文件大小 16MB
+          支持图片格式：JPG, JPEG, PNG, WEBP, BMP, GIF, TIFF<br>
+          支持视频格式：MP4, AVI, MOV, MKV, WMV, FLV, WEBM, M4V<br>
+          图片最大 16MB，视频最大 500MB
         </p>
       </div>
 
       <!-- 预览区域 -->
       <div id="previewContainer" class="preview-section mb-4" style="display: none;">
-        <h5 class="fw-semibold mb-3">图片预览</h5>
-        <img id="previewImage" class="img-fluid rounded-3 shadow-lg" style="max-height: 200px; border: 3px solid var(--primary-color);">
+        <h5 class="fw-semibold mb-3">
+          <span id="previewTitle">文件预览</span>
+          <span id="fileCount" class="badge bg-primary ms-2"></span>
+        </h5>
+        <div id="previewGrid" class="row g-3">
+          <!-- 单个预览将动态添加到这里 -->
+        </div>
+        <!-- 单个预览图片作为后备 -->
+        <img id="previewImage" class="img-fluid rounded-3 shadow-lg d-none" style="max-height: 200px; border: 3px solid var(--primary-color);">
       </div>
 
       <!-- 配置区域 -->

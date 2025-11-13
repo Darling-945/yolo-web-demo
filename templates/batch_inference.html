@@ -1,0 +1,543 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="main-container fade-in">
+    <!-- 标题区域 -->
+    <header class="text-center mb-5 mb-lg-6">
+        <i class="fas fa-layer-group fa-4x fa-lg-5x mb-4 float-animation" style="color: var(--primary-color);"></i>
+        <h1 class="display-4 fw-bold mb-3">批量处理结果</h1>
+        <p class="lead text-muted fs-5 mb-0">多个文件的检测结果汇总</p>
+    </header>
+
+    <!-- 批处理概览 -->
+    <section class="batch-overview-section mb-5 mb-lg-6">
+        <div class="batch-overview-card card mx-auto" style="max-width: 1200px;">
+            <div class="card-header text-center py-4" style="background: var(--bg-gradient-simple); color: white;">
+                <h4 class="card-title mb-0 fw-bold">
+                    <i class="fas fa-chart-bar me-2"></i>批量处理概览
+                </h4>
+            </div>
+            <div class="card-body p-5">
+                <div class="row g-4 justify-content-center">
+                    <!-- 基本统计 -->
+                    <div class="col-12 col-md-3">
+                        <div class="stat-card text-center bg-primary bg-gradient text-white rounded-3 p-4">
+                            <i class="fas fa-file fa-2x mb-3"></i>
+                            <h6 class="fw-semibold mb-2">总文件数</h6>
+                            <div class="display-6 fw-bold">{{ batch_result.summary.total_files }}</div>
+                        </div>
+                    </div>
+                    <div class="col-12 col-md-3">
+                        <div class="stat-card text-center bg-success bg-gradient text-white rounded-3 p-4">
+                            <i class="fas fa-check-circle fa-2x mb-3"></i>
+                            <h6 class="fw-semibold mb-2">成功处理</h6>
+                            <div class="display-6 fw-bold">{{ batch_result.summary.processed_files }}</div>
+                        </div>
+                    </div>
+                    <div class="col-12 col-md-3">
+                        <div class="stat-card text-center bg-warning bg-gradient text-white rounded-3 p-4">
+                            <i class="fas fa-images fa-2x mb-3"></i>
+                            <h6 class="fw-semibold mb-2">图片文件</h6>
+                            <div class="display-6 fw-bold">{{ batch_result.summary.image_count }}</div>
+                        </div>
+                    </div>
+                    <div class="col-12 col-md-3">
+                        <div class="stat-card text-center bg-info bg-gradient text-white rounded-3 p-4">
+                            <i class="fas fa-video fa-2x mb-3"></i>
+                            <h6 class="fw-semibold mb-2">视频文件</h6>
+                            <div class="display-6 fw-bold">{{ batch_result.summary.video_count }}</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 处理参数 -->
+                <div class="row g-4 justify-content-center mt-4">
+                    <div class="col-12 col-md-4">
+                        <div class="alert alert-info text-center py-3 rounded-4 mb-0">
+                            <h6 class="fw-bold mb-2">
+                                <i class="fas fa-robot me-2"></i>使用模型
+                            </h6>
+                            <div class="fw-bold text-info">{{ batch_result.summary.model_used.split('.')[0]|upper }}</div>
+                        </div>
+                    </div>
+                    <div class="col-12 col-md-4">
+                        <div class="alert alert-success text-center py-3 rounded-4 mb-0">
+                            <h6 class="fw-bold mb-2">
+                                <i class="fas fa-percentage me-2"></i>置信度阈值
+                            </h6>
+                            <div class="fw-bold text-success">{{ batch_result.summary.confidence_threshold }}</div>
+                        </div>
+                    </div>
+                    <div class="col-12 col-md-4">
+                        <div class="alert alert-warning text-center py-3 rounded-4 mb-0">
+                            <h6 class="fw-bold mb-2">
+                                <i class="fas fa-border-all me-2"></i>IoU阈值
+                            </h6>
+                            <div class="fw-bold text-warning">{{ batch_result.summary.iou_threshold }}</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 失败文件提示 -->
+                {% if batch_result.summary.failed_files > 0 %}
+                <div class="alert alert-danger text-center mt-4">
+                    <i class="fas fa-exclamation-triangle me-2"></i>
+                    有 {{ batch_result.summary.failed_files }} 个文件处理失败，请检查文件格式和大小
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </section>
+
+    <!-- 结果列表 -->
+    <section class="results-section mb-5 mb-lg-6">
+        <div class="results-card card mx-auto" style="max-width: 1400px;">
+            <div class="card-header py-4">
+                <h5 class="card-title mb-0 fw-bold">
+                    <i class="fas fa-list me-2"></i>处理结果详情
+                </h5>
+            </div>
+            <div class="card-body p-4">
+                {% if batch_result.results %}
+                <div class="row g-4">
+                    {% for result in batch_result.results %}
+                    <div class="col-12 col-md-6 col-lg-4">
+                        <div class="result-item card h-100 {% if not result.get('success', True) %}border-danger{% endif %}">
+                            <div class="card-header py-3 {% if not result.get('success', True) %}bg-danger text-white{% else %}bg-light{% endif %}">
+                                <h6 class="card-title mb-0 fw-semibold text-truncate">
+                                    {% if result.get('file_type') == 'video' %}
+                                        <i class="fas fa-video me-2"></i>
+                                    {% else %}
+                                        <i class="fas fa-image me-2"></i>
+                                    {% endif %}
+                                    {{ result.get('original_filename', 'Unknown File') }}
+                                </h6>
+                            </div>
+                            <div class="card-body p-3">
+                                {% if result.get('success', True) %}
+                                    <!-- 成功处理的结果 -->
+                                    {% if result.get('file_type') == 'video' %}
+                                        <!-- 视频结果 -->
+                                        <div class="text-center mb-3">
+                                            <video controls class="img-fluid rounded-2" style="max-height: 200px;">
+                                                <source src="{{ url_for('static', filename=result.output_video_path.replace('static/', '')) }}" type="video/mp4">
+                                                您的浏览器不支持视频播放。
+                                            </video>
+                                        </div>
+                                        <div class="detection-info">
+                                            <div class="row text-center g-2 mb-2">
+                                                <div class="col-6">
+                                                    <small class="text-muted d-block">处理帧数</small>
+                                                    <strong>{{ result.summary.processed_frames }}</strong>
+                                                </div>
+                                                <div class="col-6">
+                                                    <small class="text-muted d-block">检测目标</small>
+                                                    <strong class="text-primary">{{ result.summary.total_detections }}</strong>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    {% else %}
+                                        <!-- 图片结果 -->
+                                        <div class="text-center mb-3">
+                                            <img src="{{ url_for('static', filename=result.output_path.replace('static/', '')) }}"
+                                                 class="img-fluid rounded-2"
+                                                 alt="检测结果"
+                                                 style="max-height: 200px; object-fit: contain; cursor: pointer;"
+                                                 onclick="viewFullscreen('{{ url_for('static', filename=result.output_path.replace('static/', '')) }}')">
+                                        </div>
+                                        <div class="detection-info">
+                                            <div class="row text-center g-2 mb-2">
+                                                <div class="col-6">
+                                                    <small class="text-muted d-block">推理时间</small>
+                                                    <strong>{{ "%.3f"|format(result.summary.inference_time) }}s</strong>
+                                                </div>
+                                                <div class="col-6">
+                                                    <small class="text-muted d-block">检测目标</small>
+                                                    <strong class="text-primary">{{ result.summary.total_detections }}</strong>
+                                                </div>
+                                            </div>
+
+                                            <!-- 检测类别统计 -->
+                                            {% if result.summary.detection_summary %}
+                                            <div class="mt-2">
+                                                <small class="text-muted d-block mb-1">检测类别:</small>
+                                                <div class="d-flex flex-wrap gap-1 justify-content-center">
+                                                    {% for class_name, count in result.summary.detection_summary.items() %}
+                                                    <span class="badge bg-primary badge-sm">{{ class_name }}: {{ count }}</span>
+                                                    {% endfor %}
+                                                </div>
+                                            </div>
+                                            {% endif %}
+                                        </div>
+                                    {% endif %}
+
+                                    <!-- 操作按钮 -->
+                                    <div class="btn-group w-100 mt-3" role="group">
+                                        {% if result.get('file_type') == 'video' %}
+                                            <button class="btn btn-outline-primary btn-sm" onclick="downloadVideo('{{ url_for('static', filename=result.output_video_path.replace('static/', '')) }}', '{{ result.original_filename }}')">
+                                                <i class="fas fa-download me-1"></i>下载
+                                            </button>
+                                        {% else %}
+                                            <button class="btn btn-outline-primary btn-sm" onclick="downloadImage('{{ url_for('static', filename=result.output_path.replace('static/', '')) }}', '{{ result.original_filename }}')">
+                                                <i class="fas fa-download me-1"></i>下载
+                                            </button>
+                                        {% endif %}
+                                        <button class="btn btn-outline-info btn-sm" onclick="viewDetails({{ loop.index0 }})">
+                                            <i class="fas fa-info-circle me-1"></i>详情
+                                        </button>
+                                    </div>
+
+                                {% else %}
+                                    <!-- 处理失败的结果 -->
+                                    <div class="text-center py-4">
+                                        <i class="fas fa-exclamation-circle fa-3x text-danger mb-3"></i>
+                                        <h6 class="text-danger mb-2">处理失败</h6>
+                                        <p class="text-muted small mb-0">{{ result.get('error', '未知错误') }}</p>
+                                    </div>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% else %}
+                <div class="alert alert-warning text-center py-5">
+                    <i class="fas fa-info-circle fa-3x mb-3"></i>
+                    <p class="mb-0">暂无处理结果</p>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </section>
+
+    <!-- 操作按钮 -->
+    <section class="action-buttons-section mb-5 mb-lg-6">
+        <div class="text-center">
+            <div class="btn-group d-flex flex-column flex-md-row gap-3 justify-content-center" role="group">
+                <a href="/" class="btn btn-primary btn-lg px-5 py-3">
+                    <i class="fas fa-upload me-2"></i>上传新文件
+                </a>
+                <button class="btn btn-outline-secondary btn-lg px-4 py-3" onclick="downloadAllResults()">
+                    <i class="fas fa-archive me-2"></i>打包下载
+                </button>
+                <button class="btn btn-outline-info btn-lg px-4 py-3" onclick="shareResults()">
+                    <i class="fas fa-share-alt me-2"></i>分享结果
+                </button>
+            </div>
+            <div class="mt-4">
+                <small class="text-muted">
+                    <i class="fas fa-keyboard me-2"></i>
+                    按 <kbd>Esc</kbd> 返回首页 | <kbd>Ctrl+S</kbd> 保存所有结果
+                </small>
+            </div>
+        </div>
+    </section>
+</div>
+
+<!-- 详情模态框 -->
+<div class="modal fade" id="detailsModal" tabindex="-1" aria-labelledby="detailsModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="detailsModalLabel">
+                    <i class="fas fa-info-circle me-2"></i>处理详情
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body" id="detailsModalBody">
+                <!-- 详情内容将动态插入 -->
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">关闭</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+// 批处理结果数据
+const batchResults = {{ batch_result.results|tojson|safe }};
+
+document.addEventListener('DOMContentLoaded', function() {
+    // 显示批处理完成通知
+    {% if batch_result.summary %}
+        showToast('success', '批量处理完成！成功处理 {{ batch_result.summary.processed_files }}/{{ batch_result.summary.total_files }} 个文件', 'success');
+    {% endif %}
+
+    // 添加结果卡片动画
+    const resultCards = document.querySelectorAll('.result-item');
+    resultCards.forEach((card, index) => {
+        card.style.opacity = '0';
+        card.style.transform = 'translateY(30px)';
+
+        setTimeout(() => {
+            card.style.transition = 'all 0.6s ease';
+            card.style.opacity = '1';
+            card.style.transform = 'translateY(0)';
+        }, 100 + index * 100);
+    });
+
+    // 数字统计动画
+    animateCounters();
+});
+
+// 数字计数动画
+function animateCounters() {
+    const counters = document.querySelectorAll('.display-6');
+    counters.forEach(counter => {
+        const target = parseInt(counter.textContent);
+        if (isNaN(target)) return;
+
+        let current = 0;
+        const increment = target / 50;
+        const timer = setInterval(() => {
+            current += increment;
+            if (current >= target) {
+                current = target;
+                clearInterval(timer);
+            }
+            counter.textContent = Math.floor(current);
+        }, 30);
+    });
+}
+
+// 全屏查看图片
+function viewFullscreen(imageSrc) {
+    if (!imageSrc || imageSrc.trim() === '') {
+        showToast('error', '图片路径无效', 'error');
+        return;
+    }
+
+    const modal = document.createElement('div');
+    modal.className = 'fullscreen-modal';
+    modal.style.cssText = `
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(0, 0, 0, 0.9);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 10000;
+        cursor: pointer;
+        opacity: 0;
+        transition: opacity 0.3s ease;
+    `;
+
+    const img = document.createElement('img');
+    img.src = imageSrc;
+    img.style.cssText = `
+        max-width: 90%;
+        max-height: 90%;
+        object-fit: contain;
+        border-radius: 8px;
+        box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+    `;
+
+    const closeBtn = document.createElement('button');
+    closeBtn.innerHTML = '<i class="fas fa-times"></i>';
+    closeBtn.style.cssText = `
+        position: absolute;
+        top: 20px;
+        right: 20px;
+        background: rgba(255, 255, 255, 0.1);
+        border: none;
+        color: white;
+        font-size: 1.5rem;
+        width: 50px;
+        height: 50px;
+        border-radius: 50%;
+        cursor: pointer;
+        transition: background 0.3s ease;
+    `;
+
+    closeBtn.addEventListener('click', () => closeModal());
+    modal.addEventListener('click', () => closeModal());
+    modal.appendChild(img);
+    modal.appendChild(closeBtn);
+    document.body.appendChild(modal);
+
+    setTimeout(() => {
+        modal.style.opacity = '1';
+    }, 10);
+
+    function closeModal() {
+        modal.style.opacity = '0';
+        setTimeout(() => {
+            if (document.body.contains(modal)) {
+                document.body.removeChild(modal);
+            }
+        }, 300);
+    }
+
+    const handleEsc = (e) => {
+        if (e.key === 'Escape') {
+            closeModal();
+            document.removeEventListener('keydown', handleEsc);
+        }
+    };
+    document.addEventListener('keydown', handleEsc);
+}
+
+// 查看详情
+function viewDetails(index) {
+    const result = batchResults[index];
+    if (!result) return;
+
+    const modal = new bootstrap.Modal(document.getElementById('detailsModal'));
+    const modalBody = document.getElementById('detailsModalBody');
+
+    let detailsHTML = `
+        <div class="row">
+            <div class="col-md-6">
+                <h6>基本信息</h6>
+                <p><strong>文件名:</strong> ${result.original_filename || 'N/A'}</p>
+                <p><strong>文件类型:</strong> ${result.file_type === 'video' ? '视频' : '图片'}</p>
+                <p><strong>处理状态:</strong> ${result.get('success', true) ? '<span class="badge bg-success">成功</span>' : '<span class="badge bg-danger">失败</span>'}</p>
+    `;
+
+    if (result.get('success', true) && result.summary) {
+        detailsHTML += `
+                <p><strong>使用模型:</strong> ${result.summary.model_used || 'N/A'}</p>
+                <p><strong>检测目标数:</strong> ${result.summary.total_detections || 0}</p>
+        `;
+    }
+
+    detailsHTML += `</div><div class="col-md-6">`;
+
+    if (result.get('success', true) && result.summary) {
+        if (result.file_type === 'video') {
+            detailsHTML += `
+                <h6>视频处理信息</h6>
+                <p><strong>总帧数:</strong> ${result.summary.total_frames || 0}</p>
+                <p><strong>处理帧数:</strong> ${result.summary.processed_frames || 0}</p>
+                <p><strong>处理时间:</strong> ${(result.summary.processing_time || 0).toFixed(2)}s</p>
+            `;
+        } else {
+            detailsHTML += `
+                <h6>图片处理信息</h6>
+                <p><strong>推理时间:</strong> ${(result.summary.inference_time || 0).toFixed(3)}s</p>
+                <p><strong>模型格式:</strong> ${result.summary.model_format || 'N/A'}</p>
+            `;
+        }
+
+        if (result.summary.detection_summary) {
+            detailsHTML += `
+                <h6 class="mt-3">检测类别统计</h6>
+                <ul class="list-unstyled">
+            `;
+            for (const [className, count] of Object.entries(result.summary.detection_summary)) {
+                detailsHTML += `<li><span class="badge bg-primary me-2">${className}:</span> ${count}</li>`;
+            }
+            detailsHTML += `</ul>`;
+        }
+    } else {
+        detailsHTML += `<h6>错误信息</h6><p class="text-danger">${result.get('error', '未知错误')}</p>`;
+    }
+
+    detailsHTML += `</div></div>`;
+
+    modalBody.innerHTML = detailsHTML;
+    modal.show();
+}
+
+// 下载单个图片
+function downloadImage(imageSrc, filename) {
+    if (!imageSrc || imageSrc.trim() === '') {
+        showToast('error', '图片路径无效，无法下载', 'error');
+        return;
+    }
+
+    try {
+        const link = document.createElement('a');
+        link.href = imageSrc;
+        link.download = `detection_${filename || Date.now()}.png`;
+        link.style.display = 'none';
+        document.body.appendChild(link);
+        link.click();
+        setTimeout(() => {
+            if (document.body.contains(link)) {
+                document.body.removeChild(link);
+            }
+        }, 100);
+        showToast('success', '图片已开始下载', 'success');
+    } catch (error) {
+        console.error('Download error:', error);
+        showToast('error', '下载过程中发生错误', 'error');
+    }
+}
+
+// 下载单个视频
+function downloadVideo(videoSrc, filename) {
+    if (!videoSrc || videoSrc.trim() === '') {
+        showToast('error', '视频路径无效，无法下载', 'error');
+        return;
+    }
+
+    try {
+        const link = document.createElement('a');
+        link.href = videoSrc;
+        link.download = `detection_${filename || Date.now()}.mp4`;
+        link.style.display = 'none';
+        document.body.appendChild(link);
+        link.click();
+        setTimeout(() => {
+            if (document.body.contains(link)) {
+                document.body.removeChild(link);
+            }
+        }, 100);
+        showToast('success', '视频已开始下载', 'success');
+    } catch (error) {
+        console.error('Download error:', error);
+        showToast('error', '下载过程中发生错误', 'error');
+    }
+}
+
+// 打包下载所有结果
+function downloadAllResults() {
+    showToast('info', '正在准备打包下载...', 'info');
+
+    // 这里可以实现打包下载功能
+    // 由于复杂度，这里先提示用户分别下载
+    setTimeout(() => {
+        showToast('warning', '请使用单个下载按钮逐个下载结果文件', 'warning');
+    }, 1000);
+}
+
+// 分享结果
+function shareResults() {
+    if (navigator.share) {
+        navigator.share({
+            title: 'YOLO 批量处理结果',
+            text: '查看我的YOLO目标检测批量处理结果！',
+            url: window.location.href
+        }).then(() => {
+            showToast('success', '分享成功', 'success');
+        }).catch((error) => {
+            console.log('分享失败:', error);
+        });
+    } else {
+        navigator.clipboard.writeText(window.location.href).then(() => {
+            showToast('success', '链接已复制到剪贴板', 'success');
+        });
+    }
+}
+
+// 键盘快捷键
+document.addEventListener('keydown', function(e) {
+    // Esc 返回首页
+    if (e.key === 'Escape') {
+        window.location.href = '/';
+    }
+
+    // Ctrl+S 打包下载
+    if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+        e.preventDefault();
+        downloadAllResults();
+    }
+});
+</script>
+
+{% endblock %}

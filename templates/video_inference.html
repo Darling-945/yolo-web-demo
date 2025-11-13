@@ -1,0 +1,441 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="main-container fade-in">
+    <!-- 标题区域 -->
+    <header class="text-center mb-5 mb-lg-6">
+        <i class="fas fa-video fa-4x fa-lg-5x mb-4 float-animation" style="color: var(--primary-color);"></i>
+        <h1 class="display-4 fw-bold mb-3">视频检测结果</h1>
+        <p class="lead text-muted fs-5 mb-0">原始视频与检测结果的对比</p>
+    </header>
+
+    <!-- 视频对比区域 -->
+    <section class="video-comparison-section mb-5 mb-lg-6">
+        <div class="row g-4 g-lg-5 justify-content-center align-items-stretch">
+            <div class="col-12 col-lg-6">
+                <div class="card h-100 video-card">
+                    <div class="card-header text-center py-4">
+                        <h5 class="card-title mb-0 fw-semibold">
+                            <i class="fas fa-video me-2" style="color: var(--primary-color);"></i>
+                            原始视频
+                        </h5>
+                    </div>
+                    <div class="card-body text-center p-4">
+                        <div class="video-container position-relative">
+                            {% if input_file %}
+                            <video controls class="img-fluid rounded-3 shadow-lg" style="max-height: 400px; border: 3px solid var(--primary-color);">
+                                <source src="{{ url_for('static', filename=input_file.replace('static/', '')) }}" type="video/mp4">
+                                <source src="{{ url_for('static', filename=input_file.replace('static/', '')) }}" type="video/avi">
+                                您的浏览器不支持视频播放。
+                            </video>
+                            {% else %}
+                            <div class="alert alert-warning text-center py-5">
+                                <i class="fas fa-exclamation-triangle fa-3x mb-3"></i>
+                                <p class="mb-0">原始视频不可用</p>
+                            </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-12 col-lg-6">
+                <div class="card h-100 video-card">
+                    <div class="card-header text-center py-4">
+                        <h5 class="card-title mb-0 fw-semibold">
+                            <i class="fas fa-search me-2" style="color: var(--success-color);"></i>
+                            检测结果
+                        </h5>
+                    </div>
+                    <div class="card-body text-center p-4">
+                        <div class="video-container position-relative">
+                            {% if result.output_video_path %}
+                            <video controls class="img-fluid rounded-3 shadow-lg" style="max-height: 400px; border: 3px solid var(--success-color);">
+                                <source src="{{ url_for('static', filename=result.output_video_path.replace('static/', '')) }}" type="video/mp4">
+                                您的浏览器不支持视频播放。
+                            </video>
+                            {% else %}
+                            <div class="alert alert-warning text-center py-5">
+                                <i class="fas fa-exclamation-triangle fa-3x mb-3"></i>
+                                <p class="mb-0">检测结果视频不可用</p>
+                            </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    {% if result %}
+    <!-- 检测结果统计 -->
+    <section class="statistics-section mb-5 mb-lg-6">
+        <div class="statistics-card card mx-auto" style="max-width: 1000px;">
+            <div class="card-header text-center py-4" style="background: var(--bg-gradient-simple); color: white;">
+                <h4 class="card-title mb-0 fw-bold">
+                    <i class="fas fa-chart-bar me-2"></i>视频处理统计
+                </h4>
+            </div>
+            <div class="card-body p-5">
+                <div class="row g-5 justify-content-center">
+                    <!-- 处理摘要 -->
+                    <div class="col-12 col-lg-5">
+                        <div class="summary-section text-center">
+                            <h5 class="fw-semibold mb-4">
+                                <i class="fas fa-list-check me-2"></i>处理摘要
+                            </h5>
+
+                            <!-- 视频处理信息 -->
+                            <div class="alert alert-info text-center py-4 rounded-4 mb-4">
+                                <h6 class="fw-bold mb-3">视频处理信息</h6>
+                                <div class="row g-3">
+                                    <div class="col-6">
+                                        <i class="fas fa-film text-primary fs-4 mb-2"></i>
+                                        <small class="text-muted d-block">总帧数</small>
+                                        <div class="fw-bold text-primary">{{ result.summary.total_frames }}</div>
+                                    </div>
+                                    <div class="col-6">
+                                        <i class="fas fa-cogs text-success fs-4 mb-2"></i>
+                                        <small class="text-muted d-block">处理帧数</small>
+                                        <div class="fw-bold text-success">{{ result.summary.processed_frames }}</div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- 推理性能信息 -->
+                            <div class="alert alert-success text-center py-4 rounded-4 mb-4">
+                                <h6 class="fw-bold mb-3">
+                                    <i class="fas fa-tachometer-alt me-2"></i>处理性能
+                                </h6>
+                                <div class="row g-3">
+                                    <div class="col-4">
+                                        <i class="fas fa-clock text-primary fs-4 mb-2"></i>
+                                        <small class="text-muted d-block">处理时间</small>
+                                        <div class="fw-bold text-success">{{ "%.2f"|format(result.summary.processing_time) }}s</div>
+                                    </div>
+                                    <div class="col-4">
+                                        <i class="fas fa-robot text-info fs-4 mb-2"></i>
+                                        <small class="text-muted d-block">使用模型</small>
+                                        <div class="fw-bold text-info">{{ result.summary.model_used.split('.')[0]|upper }}</div>
+                                    </div>
+                                    <div class="col-4">
+                                        <i class="fas fa-microchip text-warning fs-4 mb-2"></i>
+                                        <small class="text-muted d-block">平均FPS</small>
+                                        <div class="fw-bold text-warning">{{ "%.1f"|format(result.summary.processed_frames / result.summary.processing_time) }}</div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- 检测统计 -->
+                            {% if result.summary.detection_summary %}
+                            <div class="detection-summary table-responsive">
+                                <h6 class="fw-bold mb-3 text-center">检测到的目标总数</h6>
+                                <div class="display-6 fw-bold text-primary text-center mb-3">{{ result.summary.total_detections }}</div>
+                                <table class="table table-hover table-borderless">
+                                    <thead>
+                                        <tr>
+                                            <th class="text-center">目标类型</th>
+                                            <th class="text-center">数量</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {% for class_name, count in result.summary.detection_summary.items() %}
+                                        <tr>
+                                            <td class="text-center fw-semibold">{{ class_name }}</td>
+                                            <td class="text-center">
+                                                <span class="badge bg-primary fs-6 px-3 py-2">{{ count }}</span>
+                                            </td>
+                                        </tr>
+                                        {% endfor %}
+                                    </tbody>
+                                </table>
+                            </div>
+                            {% else %}
+                            <div class="alert alert-warning text-center py-4 rounded-4">
+                                <i class="fas fa-exclamation-triangle fa-2x mb-3"></i>
+                                <p class="mb-0">在当前置信度阈值下未检测到目标</p>
+                            </div>
+                            {% endif %}
+                        </div>
+                    </div>
+
+                    <!-- 处理详情 -->
+                    <div class="col-12 col-lg-7">
+                        <div class="details-section text-center">
+                            <h5 class="fw-semibold mb-4">
+                                <i class="fas fa-cog me-2"></i>处理参数
+                            </h5>
+                            <div class="table-responsive">
+                                <table class="table table-hover table-sm">
+                                    <thead class="sticky-top bg-light">
+                                        <tr>
+                                            <th class="text-center">参数</th>
+                                            <th class="text-center">值</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <tr>
+                                            <td class="text-center fw-semibold">置信度阈值</td>
+                                            <td class="text-center">
+                                                <span class="badge bg-info fs-6 px-3 py-2">{{ result.summary.confidence_threshold }}</span>
+                                            </td>
+                                        </tr>
+                                        <tr>
+                                            <td class="text-center fw-semibold">IoU阈值</td>
+                                            <td class="text-center">
+                                                <span class="badge bg-warning fs-6 px-3 py-2">{{ result.summary.iou_threshold }}</span>
+                                            </td>
+                                        </tr>
+                                        <tr>
+                                            <td class="text-center fw-semibold">帧跳跃</td>
+                                            <td class="text-center">
+                                                <span class="badge bg-secondary fs-6 px-3 py-2">{{ result.summary.frame_skip or 1 }}</span>
+                                            </td>
+                                        </tr>
+                                        {% if result.summary.frame_size %}
+                                        <tr>
+                                            <td class="text-center fw-semibold">输出分辨率</td>
+                                            <td class="text-center">
+                                                <span class="badge bg-success fs-6 px-3 py-2">{{ result.summary.frame_size[0] }}×{{ result.summary.frame_size[1] }}</span>
+                                            </td>
+                                        </tr>
+                                        {% endif %}
+                                    </tbody>
+                                </table>
+                            </div>
+
+                            {% if result.summary.frame_detections %}
+                            <h6 class="fw-semibold mt-4 mb-3">
+                                <i class="fas fa-chart-line me-2"></i>帧检测统计
+                            </h6>
+                            <div class="table-responsive" style="max-height: 200px; overflow-y: auto;">
+                                <table class="table table-hover table-sm">
+                                    <thead class="sticky-top bg-light">
+                                        <tr>
+                                            <th class="text-center">帧范围</th>
+                                            <th class="text-center">检测数量</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {% for frame_range, count in result.summary.frame_detections.items() %}
+                                        <tr>
+                                            <td class="text-center">{{ frame_range }}</td>
+                                            <td class="text-center">
+                                                <span class="badge bg-primary fs-6 px-3 py-2">{{ count }}</span>
+                                            </td>
+                                        </tr>
+                                        {% endfor %}
+                                    </tbody>
+                                </table>
+                            </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+    {% endif %}
+
+    <!-- 操作按钮 -->
+    <section class="action-buttons-section mb-5 mb-lg-6">
+        <div class="text-center">
+            <div class="btn-group d-flex flex-column flex-md-row gap-3 justify-content-center" role="group">
+                <a href="/" class="btn btn-primary btn-lg px-5 py-3">
+                    <i class="fas fa-upload me-2"></i>上传新视频
+                </a>
+                {% if result.output_video_path %}
+                <button class="btn btn-outline-secondary btn-lg px-4 py-3" onclick="downloadVideo('{{ url_for('static', filename=result.output_video_path.replace('static/', '')) }}')">
+                    <i class="fas fa-download me-2"></i>下载结果
+                </button>
+                {% endif %}
+                <button class="btn btn-outline-info btn-lg px-4 py-3" onclick="shareResults()">
+                    <i class="fas fa-share-alt me-2"></i>分享结果
+                </button>
+            </div>
+            <div class="mt-4">
+                <small class="text-muted">
+                    <i class="fas fa-keyboard me-2"></i>
+                    按 <kbd>Esc</kbd> 返回首页 | <kbd>Ctrl+S</kbd> 保存结果
+                </small>
+            </div>
+        </div>
+    </section>
+
+    <!-- 技术说明 -->
+    <section class="info-section">
+        <div class="info-card card mx-auto" style="max-width: 900px;">
+            <div class="card-body p-5">
+                <h5 class="card-title text-center fw-bold mb-4">
+                    <i class="fas fa-info-circle me-2" style="color: var(--primary-color);"></i>关于YOLO视频目标检测
+                </h5>
+                <p class="card-text text-center mb-5 lead">YOLO视频目标检测能够实时处理视频流，在每一帧中识别和定位多个目标，为视频分析和监控提供强大的AI能力。</p>
+                <div class="row g-4 justify-content-center">
+                    <div class="col-12 col-md-4">
+                        <div class="text-center feature-item">
+                            <div class="feature-icon mx-auto mb-3">
+                                <i class="fas fa-bolt"></i>
+                            </div>
+                            <h6 class="fw-semibold mb-2">实时处理</h6>
+                            <p class="small text-muted mb-0">逐帧检测，保持视频流畅性</p>
+                        </div>
+                    </div>
+                    <div class="col-12 col-md-4">
+                        <div class="text-center feature-item">
+                            <div class="feature-icon mx-auto mb-3">
+                                <i class="fas fa-eye"></i>
+                            </div>
+                            <h6 class="fw-semibold mb-2">目标跟踪</h6>
+                            <p class="small text-muted mb-0">在连续帧间保持目标一致性</p>
+                        </div>
+                    </div>
+                    <div class="col-12 col-md-4">
+                        <div class="text-center feature-item">
+                            <div class="feature-icon mx-auto mb-3">
+                                <i class="fas fa-chart-bar"></i>
+                            </div>
+                            <h6 class="fw-semibold mb-2">统计分析</h6>
+                            <p class="small text-muted mb-0">提供详细的检测统计数据</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+</div>
+
+<script>
+// 增强的视频结果页面功能
+document.addEventListener('DOMContentLoaded', function() {
+    // 显示处理完成通知
+    {% if result.summary.processing_time %}
+        showToast('info', '视频处理完成！处理耗时: {{ "%.2f"|format(result.summary.processing_time) }}秒，处理了{{ result.summary.processed_frames }}帧', 'info');
+    {% endif %}
+
+    // 视频加载状态处理
+    const videos = document.querySelectorAll('video');
+    videos.forEach(video => {
+        video.addEventListener('loadstart', function() {
+            showToast('info', '正在加载视频...', 'info');
+        });
+
+        video.addEventListener('canplay', function() {
+            showToast('success', '视频已加载完成', 'success');
+        });
+
+        video.addEventListener('error', function() {
+            showToast('error', '视频加载失败', 'error');
+        });
+    });
+
+    // 显示统计动画
+    const statsCards = document.querySelectorAll('.card');
+    statsCards.forEach((card, index) => {
+        card.style.opacity = '0';
+        card.style.transform = 'translateY(30px)';
+
+        setTimeout(() => {
+            card.style.transition = 'all 0.6s ease';
+            card.style.opacity = '1';
+            card.style.transform = 'translateY(0)';
+        }, 200 + index * 150);
+    });
+
+    // 添加结果统计的数字动画
+    animateCounters();
+});
+
+// 数字计数动画
+function animateCounters() {
+    const totalDetections = document.querySelector('.display-6');
+    if (totalDetections) {
+        const target = parseInt(totalDetections.textContent);
+        let current = 0;
+        const increment = target / 50;
+        const timer = setInterval(() => {
+            current += increment;
+            if (current >= target) {
+                current = target;
+                clearInterval(timer);
+            }
+            totalDetections.textContent = Math.floor(current);
+        }, 30);
+    }
+}
+
+// 下载视频
+function downloadVideo(videoSrc) {
+    // 检查视频源是否有效
+    if (!videoSrc || videoSrc.trim() === '') {
+        showToast('error', '视频路径无效，无法下载', 'error');
+        return;
+    }
+
+    try {
+        const link = document.createElement('a');
+        link.href = videoSrc;
+        link.download = `yolo_video_detection_result_${Date.now()}.mp4`;
+        link.style.display = 'none';
+
+        // 添加下载错误处理
+        link.onerror = function() {
+            showToast('error', '视频下载失败', 'error');
+            if (document.body.contains(link)) {
+                document.body.removeChild(link);
+            }
+        };
+
+        document.body.appendChild(link);
+        link.click();
+
+        // 延迟移除链接，确保下载开始
+        setTimeout(() => {
+            if (document.body.contains(link)) {
+                document.body.removeChild(link);
+            }
+        }, 100);
+
+        showToast('success', '检测结果视频已开始下载', 'success');
+    } catch (error) {
+        console.error('Download error:', error);
+        showToast('error', '下载过程中发生错误', 'error');
+    }
+}
+
+// 分享结果
+function shareResults() {
+    if (navigator.share) {
+        navigator.share({
+            title: 'YOLO 视频检测结果',
+            text: '查看我的YOLO视频目标检测结果！',
+            url: window.location.href
+        }).then(() => {
+            showToast('success', '分享成功', 'success');
+        }).catch((error) => {
+            console.log('分享失败:', error);
+        });
+    } else {
+        // 复制链接到剪贴板
+        navigator.clipboard.writeText(window.location.href).then(() => {
+            showToast('success', '链接已复制到剪贴板', 'success');
+        });
+    }
+}
+
+// 键盘快捷键
+document.addEventListener('keydown', function(e) {
+    // Esc 返回首页
+    if (e.key === 'Escape') {
+        window.location.href = '/';
+    }
+
+    // Ctrl+S 保存结果
+    if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+        e.preventDefault();
+        {% if result.output_video_path %}
+        downloadVideo('{{ url_for('static', filename=result.output_video_path.replace('static/', '')) }}');
+        {% endif %}
+    }
+});
+</script>
+
+{% endblock %}

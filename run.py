@@ -18,7 +18,7 @@ DEFAULT_CONFIG = {
     'HOST': '0.0.0.0',
     'PORT': '5000',
     'SECRET_KEY': secrets.token_hex(32),
-    'MAX_CONTENT_LENGTH': '16777216',
+    'MAX_CONTENT_LENGTH': '104857600',
     'UPLOAD_FOLDER': 'static/uploads',
     'OUTPUT_FOLDER': 'static/outputs',
     'MAX_FILE_AGE': '3600',

@@ -34,9 +34,10 @@ def is_valid_image_file(file_path: str) -> bool:
         if file_size == 0 or file_size > 50 * 1024 * 1024:
             return False
 
-        filename = os.path.basename(file_path).lower()
+        filename = os.path.basename(file_path)
+        filename_lower = filename.lower()
         allowed_extensions = {'.jpg', '.jpeg', '.png', '.webp', '.bmp', '.gif', '.tiff', '.tif'}
-        if not any(filename.endswith(ext) for ext in allowed_extensions):
+        if not any(filename_lower.endswith(ext) for ext in allowed_extensions):
             return False
 
         try:
@@ -56,20 +57,94 @@ def is_valid_image_file(file_path: str) -> bool:
         return False
 
 
+def is_valid_video_file(file_path: str) -> bool:
+    """Validate if a file is actually a video"""
+    try:
+        if not os.path.exists(file_path):
+            return False
+
+        file_size = os.path.getsize(file_path)
+        if file_size == 0 or file_size > 500 * 1024 * 1024:  # 500MB limit for videos
+            return False
+
+        filename = os.path.basename(file_path)
+        filename_lower = filename.lower()
+        allowed_extensions = {'.mp4', '.avi', '.mov', '.mkv', '.wmv', '.flv', '.webm', '.m4v'}
+        if not any(filename_lower.endswith(ext) for ext in allowed_extensions):
+            return False
+
+        # Try to open video file with OpenCV
+        try:
+            import cv2
+            cap = cv2.VideoCapture(file_path)
+            if cap.isOpened():
+                ret, frame = cap.read()
+                cap.release()
+                return ret is not None  # Successfully read first frame
+            return False
+        except Exception as e:
+            logger.debug(f"OpenCV validation failed for {file_path}: {str(e)}")
+            return False
+
+    except Exception as e:
+        logger.error(f"Video validation error for {file_path}: {str(e)}")
+        return False
+
+
+def get_file_type(file_path: str) -> str:
+    """Determine if file is image or video"""
+    filename = os.path.basename(file_path)
+    filename_lower = filename.lower()
+
+    # Primary check: use file extension (more reliable)
+    image_extensions = {'.jpg', '.jpeg', '.png', '.webp', '.bmp', '.gif', '.tiff', '.tif'}
+    video_extensions = {'.mp4', '.avi', '.mov', '.mkv', '.wmv', '.flv', '.webm', '.m4v'}
+
+    if any(filename_lower.endswith(ext) for ext in image_extensions):
+        return 'image'
+    elif any(filename_lower.endswith(ext) for ext in video_extensions):
+        return 'video'
+
+    # Fallback: try content validation (slower but more thorough)
+    if is_valid_image_file(file_path):
+        return 'image'
+    elif is_valid_video_file(file_path):
+        return 'video'
+    else:
+        return 'unknown'
+
+
 def secure_file_upload(file, upload_folder: str) -> Dict[str, Any]:
-    """Handle file upload securely"""
+    """Handle file upload securely (single file)"""
     try:
         if not file or not file.filename:
             return {'success': False, 'error': 'No file provided'}
 
-        filename = secure_filename(file.filename)
+        # Extract extension BEFORE applying secure_filename
+        original_filename = file.filename
+        original_ext = original_filename.rsplit('.', 1)[1].lower() if '.' in original_filename else ''
+
+        # Apply secure_filename to the base name only, keep extension
+        if '.' in original_filename:
+            base_name = original_filename.rsplit('.', 1)[0]
+            secure_base = secure_filename(base_name) or f"file_{int(time.time())}"
+            filename = f"{secure_base}.{original_ext}"
+        else:
+            filename = secure_filename(original_filename) or f"file_{int(time.time())}"
+
         if not filename:
             return {'success': False, 'error': 'Invalid filename'}
 
         file_ext = filename.rsplit('.', 1)[1].lower() if '.' in filename else ''
-        allowed_extensions = {ext.lower() for ext in get_config().ALLOWED_EXTENSIONS}
-        if file_ext not in allowed_extensions:
-            return {'success': False, 'error': f'Invalid file type: {file_ext}'}
+
+        # Check allowed extensions for both images and videos (case-insensitive)
+        image_extensions = {ext.lower() for ext in get_config().ALLOWED_EXTENSIONS}
+        video_extensions = {'mp4', 'avi', 'mov', 'mkv', 'wmv', 'flv', 'webm', 'm4v'}
+        all_allowed_extensions = image_extensions.union(video_extensions)
+
+        if file_ext not in all_allowed_extensions:
+            logger.error(f"File extension '{file_ext}' not in allowed extensions for file '{original_filename}'")
+            return {'success': False, 'error': f'Invalid file type: {file_ext}. Supported formats: Images ({", ".join(sorted(image_extensions))}), Videos ({", ".join(sorted(video_extensions))})'}
 
         os.makedirs(upload_folder, exist_ok=True)
         timestamp = str(int(time.time()))
@@ -83,18 +158,104 @@ def secure_file_upload(file, upload_folder: str) -> Dict[str, Any]:
         if not os.path.exists(final_path):
             return {'success': False, 'error': 'File save failed'}
 
-        if not is_valid_image_file(final_path):
+        # Validate file type
+        file_type = get_file_type(final_path)
+        if file_type == 'unknown':
             os.remove(final_path)
-            return {'success': False, 'error': 'Invalid image file'}
+            return {'success': False, 'error': 'Invalid file format'}
 
         return {
             'success': True,
             'filename': unique_filename,
-            'file_path': final_path
+            'file_path': final_path,
+            'file_type': file_type
         }
 
     except Exception as e:
         logger.error(f"Upload error: {str(e)}")
+        return {'success': False, 'error': f'Upload failed: {str(e)}'}
+
+
+def secure_multiple_files_upload(files, upload_folder: str) -> Dict[str, Any]:
+    """Handle multiple file uploads securely"""
+    try:
+        if not files:
+            return {'success': False, 'error': 'No files provided'}
+
+        uploaded_files = []
+        failed_files = []
+
+        os.makedirs(upload_folder, exist_ok=True)
+
+        for i, file in enumerate(files):
+            if not file or not file.filename:
+                failed_files.append({'index': i, 'filename': 'None', 'error': 'Empty file'})
+                continue
+
+            # Extract extension BEFORE applying secure_filename
+            original_filename = file.filename
+            original_ext = original_filename.rsplit('.', 1)[1].lower() if '.' in original_filename else ''
+
+            # Apply secure_filename to the base name only, keep extension
+            if '.' in original_filename:
+                base_name = original_filename.rsplit('.', 1)[0]
+                secure_base = secure_filename(base_name) or f"file_{int(time.time())}"
+                filename = f"{secure_base}.{original_ext}"
+            else:
+                filename = secure_filename(original_filename) or f"file_{int(time.time())}"
+
+            if not filename:
+                failed_files.append({'index': i, 'filename': file.filename, 'error': 'Invalid filename'})
+                continue
+
+            file_ext = filename.rsplit('.', 1)[1].lower() if '.' in filename else ''
+            image_extensions = {ext.lower() for ext in get_config().ALLOWED_EXTENSIONS}
+            video_extensions = {'mp4', 'avi', 'mov', 'mkv', 'wmv', 'flv', 'webm', 'm4v'}
+            all_allowed_extensions = image_extensions.union(video_extensions)
+
+            if file_ext not in all_allowed_extensions:
+                failed_files.append({'index': i, 'filename': filename, 'error': f'Invalid file type: {file_ext}. Supported formats: Images ({", ".join(sorted(image_extensions))}), Videos ({", ".join(sorted(video_extensions))})'})
+                continue
+
+            # Generate unique filename
+            timestamp = str(int(time.time() * 1000)) + str(i)  # Add milliseconds and index for uniqueness
+            name, ext = os.path.splitext(filename)
+            unique_filename = f"{name}_{timestamp}{ext}"
+            final_path = os.path.join(upload_folder, unique_filename)
+
+            # Save file
+            file.seek(0)
+            file.save(final_path)
+
+            if not os.path.exists(final_path):
+                failed_files.append({'index': i, 'filename': filename, 'error': 'File save failed'})
+                continue
+
+            # Validate file type
+            file_type = get_file_type(final_path)
+            if file_type == 'unknown':
+                os.remove(final_path)
+                failed_files.append({'index': i, 'filename': filename, 'error': 'Invalid file format'})
+                continue
+
+            uploaded_files.append({
+                'original_filename': file.filename,
+                'filename': unique_filename,
+                'file_path': final_path,
+                'file_type': file_type,
+                'file_size': os.path.getsize(final_path)
+            })
+
+        return {
+            'success': True if uploaded_files else False,
+            'uploaded_files': uploaded_files,
+            'failed_files': failed_files,
+            'total_uploaded': len(uploaded_files),
+            'total_failed': len(failed_files)
+        }
+
+    except Exception as e:
+        logger.error(f"Multiple file upload error: {str(e)}")
         return {'success': False, 'error': f'Upload failed: {str(e)}'}
 
 
