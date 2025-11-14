@@ -409,8 +409,9 @@ class YOLOInference:
         out.release()
 
         # Calculate statistics
+        total_processing_time = sum(inference_times) if inference_times else 0
         avg_inference_time = np.mean(inference_times) if inference_times else 0
-        processing_fps = processed_frames / (sum(inference_times) if inference_times else 1)
+        processing_fps = processed_frames / (total_processing_time if total_processing_time > 0 else 1)
 
         result = {
             'summary': {
@@ -425,6 +426,7 @@ class YOLOInference:
                 'frame_skip': frame_skip,
                 'avg_inference_time': round(avg_inference_time, 4),
                 'processing_fps': round(processing_fps, 2),
+                'processing_time': round(total_processing_time, 2),  # 添加处理时间字段
                 'model_format': self.model_format
             },
             'detections': total_detections_across_video,

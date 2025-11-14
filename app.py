@@ -116,7 +116,12 @@ def infer():
 
                 # Process based on file type
                 if file_type == 'video':
-                    result = yolo_inference.detect_video(file_path, output_path)
+                    result = yolo_inference.detect_video(
+                        file_path,
+                        output_path,
+                        frame_skip=3,  # Skip frames for reasonable processing time
+                        max_frames=600  # Limit total frames for performance
+                    )
                 else:
                     result = yolo_inference.detect(file_path, output_path)
 
@@ -214,8 +219,8 @@ def infer():
                             video_result = yolo_inference.detect_video(
                                 video_file['file_path'],
                                 video_output_path,
-                                frame_skip=5,  # Skip frames for faster processing
-                                max_frames=300  # Limit total frames
+                                frame_skip=3,  # Consistent with other video processing
+                                max_frames=600  # Consistent with other video processing
                             )
 
                             # Add batch info to video result
@@ -509,8 +514,8 @@ def batch_inference():
                         video_result = yolo_inference.detect_video(
                             video_file['file_path'],
                             video_output_path,
-                            frame_skip=5,
-                            max_frames=300
+                            frame_skip=3,  # Same as single video processing
+                            max_frames=600  # Same as single video processing
                         )
 
                         video_result['original_filename'] = video_file['original_filename']
