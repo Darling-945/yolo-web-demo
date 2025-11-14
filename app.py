@@ -4,7 +4,7 @@ import json
 import numpy as np
 from model_inference import yolo_inference, get_available_models
 from run import get_config
-from utils import secure_file_upload, secure_multiple_files_upload, log_security_event, setup_app_logging, process_inference_parameters, generate_unique_filename
+from utils import secure_file_upload, secure_multiple_files_upload, log_security_event, setup_app_logging, process_inference_parameters, generate_unique_filename, normalize_static_path
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 
@@ -42,6 +42,15 @@ limiter = Limiter(
 )
 
 logger.info("YOLO Web Demo started")
+
+
+# Template context processor for path utilities
+@app.context_processor
+def utility_processor():
+    def normalize_path(path):
+        """Normalize path for template use"""
+        return normalize_static_path(path)
+    return dict(normalize_path=normalize_path)
 
 
 @app.route('/')

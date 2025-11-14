@@ -18,6 +18,13 @@ from .utils import (
     generate_unique_filename
 )
 
+# Import path utilities
+from .path_utils import (
+    normalize_static_path,
+    get_static_url_path,
+    ensure_static_path
+)
+
 __all__ = [
     'secure_file_upload',
     'secure_multiple_files_upload',
@@ -30,5 +37,8 @@ __all__ = [
     'get_file_info',
     'setup_app_logging',
     'process_inference_parameters',
-    'generate_unique_filename'
+    'generate_unique_filename',
+    'normalize_static_path',
+    'get_static_url_path',
+    'ensure_static_path'
 ]
