@@ -128,8 +128,8 @@ def infer():
                     result = yolo_inference.detect_video(
                         file_path,
                         output_path,
-                        frame_skip=3,  # Skip frames for reasonable processing time
-                        max_frames=600  # Limit total frames for performance
+                        frame_skip=1,  # Process all frames to maintain full duration
+                        max_frames=None  # No limit to maintain full video duration
                     )
                 else:
                     result = yolo_inference.detect(file_path, output_path)
@@ -228,8 +228,8 @@ def infer():
                             video_result = yolo_inference.detect_video(
                                 video_file['file_path'],
                                 video_output_path,
-                                frame_skip=3,  # Consistent with other video processing
-                                max_frames=600  # Consistent with other video processing
+                                frame_skip=1,  # Process all frames to maintain full duration
+                                max_frames=None  # No limit to maintain full video duration
                             )
 
                             # Add batch info to video result
@@ -523,8 +523,8 @@ def batch_inference():
                         video_result = yolo_inference.detect_video(
                             video_file['file_path'],
                             video_output_path,
-                            frame_skip=3,  # Same as single video processing
-                            max_frames=600  # Same as single video processing
+                            frame_skip=1,  # Process all frames to maintain full duration
+                            max_frames=None  # No limit to maintain full video duration
                         )
 
                         video_result['original_filename'] = video_file['original_filename']
@@ -626,3 +626,20 @@ def internal_error(e):
         'success': False,
         'error': 'Internal server error. Please try again later.'
     }, 500
+
+
+# Enhanced static file serving for videos
+@app.route('/static/<path:filename>')
+def custom_static(filename):
+    """Enhanced static file serving with better video support"""
+    from flask import send_from_directory
+    import mimetypes
+
+    # Determine MIME type
+    mimetype, _ = mimetypes.guess_type(filename)
+
+    # Ensure video files have proper MIME type
+    if filename.lower().endswith(('.mp4', '.avi', '.mov', '.mkv')):
+        mimetype = 'video/mp4'
+
+    return send_from_directory('static', filename, mimetype=mimetype)

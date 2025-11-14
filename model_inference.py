@@ -320,9 +320,27 @@ class YOLOInference:
         logger.info(f"Processing video: {video_path}")
         logger.info(f"Video properties: {width}x{height}, {fps}fps, {total_frames} frames")
 
-        # Setup video writer
-        fourcc = cv2.VideoWriter_fourcc(*'mp4v')
-        out = cv2.VideoWriter(output_path, fourcc, fps, (width, height))
+        # Setup video writer with better browser compatibility
+        # Try different encoders for better compatibility
+        fourcc_attempts = [
+            cv2.VideoWriter_fourcc(*'H264'),  # H.264 - best compatibility
+            cv2.VideoWriter_fourcc(*'XVID'),  # XVID - good compatibility
+            cv2.VideoWriter_fourcc(*'MP4V'),  # MP4V - fallback
+            cv2.VideoWriter_fourcc(*'mp4v'),  # mp4v - original fallback
+        ]
+
+        out = None
+        for fourcc in fourcc_attempts:
+            out = cv2.VideoWriter(output_path, fourcc, fps, (width, height))
+            if out.isOpened():
+                logger.info(f"Using video codec: {fourcc}")
+                break
+            else:
+                out.release()
+                out = None
+
+        if out is None:
+            raise ValueError("Could not initialize video writer with any codec")
 
         # Process frames
         frame_count = 0
@@ -330,6 +348,10 @@ class YOLOInference:
         total_detections_across_video = []
         video_detection_summary = {}
         inference_times = []
+
+        # Variables to store the last processed results for skipped frames
+        last_annotated_frame = None
+        last_frame_detections = []
 
         # Store original thresholds
         original_conf = self.conf_threshold
@@ -345,12 +367,15 @@ class YOLOInference:
             if not ret:
                 break
 
-            # Skip frames according to frame_skip setting
-            if frame_count % frame_skip == 0:
+            # Check if this frame should be processed for inference
+            should_process_inference = (frame_count % frame_skip == 0)
+
+            if should_process_inference:
                 processed_frames += 1
 
-                # Check max_frames limit
+                # Check max_frames limit (only applies to frames processed for inference)
                 if max_frames and processed_frames > max_frames:
+                    logger.warning(f"Reached maximum processed frames limit ({max_frames}), stopping video processing")
                     break
 
                 # Perform inference
@@ -386,21 +411,31 @@ class YOLOInference:
                             video_detection_summary[class_name] = 1
 
                 # Draw results on frame
-                annotated_frame = results[0].plot()
+                last_annotated_frame = results[0].plot()
+                last_frame_detections = frame_detections
 
-                # Add frame number and detection count to frame
-                cv2.putText(annotated_frame, f'Frame: {frame_count}',
-                           (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
-                cv2.putText(annotated_frame, f'Detections: {len(frame_detections)}',
-                           (10, 70), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
+            # For skipped frames, use the last processed results if available
+            if last_annotated_frame is not None:
+                annotated_frame = last_annotated_frame.copy()
+                current_frame_detections = last_frame_detections if not should_process_inference else last_frame_detections
+            else:
+                # First frame before any inference - use original frame
+                annotated_frame = frame.copy()
+                current_frame_detections = []
 
-                # Write frame to output video
-                out.write(annotated_frame)
+            # Add frame number and detection count to frame
+            cv2.putText(annotated_frame, f'Frame: {frame_count}',
+                       (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
+            cv2.putText(annotated_frame, f'Detections: {len(current_frame_detections)}',
+                       (10, 70), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
 
-                # Progress callback
-                if progress_callback:
-                    progress = (frame_count / total_frames) * 100
-                    progress_callback(progress, frame_count, total_frames, len(frame_detections))
+            # Write ALL frames to output video to maintain original duration
+            out.write(annotated_frame)
+
+            # Progress callback
+            if progress_callback:
+                progress = (frame_count / total_frames) * 100
+                progress_callback(progress, frame_count, total_frames, len(current_frame_detections))
 
             frame_count += 1
 
