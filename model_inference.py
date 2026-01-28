@@ -9,13 +9,20 @@ import numpy as np
 from ultralytics import YOLO
 import os
 import time
+import gc
 from typing import List, Dict, Tuple, Optional, Union
 import logging
 from pathlib import Path
+from contextlib import contextmanager
+from threading import Lock, Event
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+# Model cache for preloading
+MODEL_CACHE = {}
+CACHE_LOCK = Lock()
 
 
 def convert_numpy_types(obj):
@@ -53,6 +60,7 @@ class YOLOInference:
         self.iou_threshold = iou_threshold
         self.model = None
         self.model_format = self._detect_model_format(model_path)
+        self._stop_event = Event()
         self.load_model()
 
     def _detect_model_format(self, model_path: str) -> str:
@@ -96,9 +104,24 @@ class YOLOInference:
             logger.error(f"Failed to load model {self.model_path} ({self.model_format}): {str(e)}")
             raise
 
+    def cancel_video_processing(self):
+        """Signal to stop the current video processing"""
+        self._stop_event.set()
+        logger.info("Video processing cancellation requested")
+
+    def reset_stop_event(self):
+        """Reset the stop event for a new processing task"""
+        self._stop_event.clear()
+        logger.debug("Stop event reset")
+
+    def is_cancelled(self) -> bool:
+        """Check if processing has been cancelled"""
+        return self._stop_event.is_set()
+
     def detect(self, image_path: str, output_path: str) -> Dict:
         """
         Detect objects in an image and save the annotated result
+        Optimized with explicit memory management
 
         Args:
             image_path (str): Path to input image
@@ -109,6 +132,10 @@ class YOLOInference:
         """
         if self.model is None:
             raise ValueError("Model not loaded. Call load_model() first.")
+
+        img = None
+        annotated_img = None
+        results = None
 
         try:
             # Validate input image path
@@ -210,6 +237,15 @@ class YOLOInference:
         except Exception as e:
             logger.error(f"Error during detection: {str(e)}")
             raise
+        finally:
+            # Explicit memory cleanup
+            if img is not None:
+                del img
+            if annotated_img is not None:
+                del annotated_img
+            if results is not None:
+                del results
+            gc.collect()
 
     def detect_and_return_image(self, image_path: str) -> Tuple[np.ndarray, Dict]:
         """
@@ -285,15 +321,17 @@ class YOLOInference:
 
     def detect_video(self, video_path: str, output_path: str,
                     frame_skip: int = 1, max_frames: Optional[int] = None,
-                    progress_callback: Optional[callable] = None) -> Dict:
+                    batch_size: int = 1, progress_callback: Optional[callable] = None) -> Dict:
         """
         Detect objects in a video and save annotated video
+        Optimized with batch processing support
 
         Args:
             video_path (str): Path to input video
             output_path (str): Path to save output video
             frame_skip (int): Process every Nth frame (default: 1)
             max_frames (int): Maximum number of frames to process (default: None)
+            batch_size (int): Number of frames to process in batch for inference (default: 1)
             progress_callback (callable): Function to call with progress updates
 
         Returns:
@@ -301,6 +339,9 @@ class YOLOInference:
         """
         if self.model is None:
             raise ValueError("Model not loaded. Call load_model() first.")
+
+        # Reset stop event for new processing
+        self.reset_stop_event()
 
         # Validate input video path
         if not os.path.exists(video_path):
@@ -319,6 +360,7 @@ class YOLOInference:
 
         logger.info(f"Processing video: {video_path}")
         logger.info(f"Video properties: {width}x{height}, {fps}fps, {total_frames} frames")
+        logger.info(f"Batch processing enabled with batch_size={batch_size}")
 
         # Setup video writer with better browser compatibility
         # Try different encoders for better compatibility
@@ -340,6 +382,7 @@ class YOLOInference:
                 out = None
 
         if out is None:
+            cap.release()
             raise ValueError("Could not initialize video writer with any codec")
 
         # Process frames
@@ -362,86 +405,119 @@ class YOLOInference:
 
         logger.info(f"Starting video processing with frame_skip={frame_skip}")
 
-        while True:
-            ret, frame = cap.read()
-            if not ret:
-                break
+        # Frame batch for batch processing
+        frame_batch = []
+        frame_indices = []
 
-            # Check if this frame should be processed for inference
-            should_process_inference = (frame_count % frame_skip == 0)
-
-            if should_process_inference:
-                processed_frames += 1
-
-                # Check max_frames limit (only applies to frames processed for inference)
-                if max_frames and processed_frames > max_frames:
-                    logger.warning(f"Reached maximum processed frames limit ({max_frames}), stopping video processing")
+        try:
+            while True:
+                ret, frame = cap.read()
+                if not ret:
                     break
 
-                # Perform inference
-                inference_start = time.time()
-                results = self.model(frame, conf=self.conf_threshold, iou=self.iou_threshold)
-                inference_time = time.time() - inference_start
-                inference_times.append(inference_time)
+                # Check if processing was cancelled (client disconnected)
+                if self._stop_event.is_set():
+                    logger.warning("Video processing cancelled by client")
+                    # Clean up partial output file
+                    if os.path.exists(output_path):
+                        try:
+                            os.remove(output_path)
+                            logger.info(f"Removed partial output file: {output_path}")
+                        except Exception as e:
+                            logger.warning(f"Failed to remove partial output file: {e}")
+                    raise InterruptedError("Video processing was cancelled")
 
-                # Process detections
-                frame_detections = []
-                if results[0].boxes is not None:
-                    for box in results[0].boxes:
-                        class_id = int(box.cls[0])
-                        conf = float(box.conf[0])
-                        bbox = box.xyxy[0].cpu().numpy()
-                        class_name = self.model.names[class_id]
+                # Check if this frame should be processed for inference
+                should_process_inference = (frame_count % frame_skip == 0)
 
-                        detection_info = {
-                            'class_id': class_id,
-                            'class_name': class_name,
-                            'confidence': conf,
-                            'bbox': bbox.tolist(),
-                            'frame_number': frame_count
-                        }
+                if should_process_inference:
+                    # Add frame to batch
+                    frame_batch.append(frame)
+                    frame_indices.append(frame_count)
 
-                        frame_detections.append(detection_info)
-                        total_detections_across_video.append(detection_info)
+                    # Process batch when it reaches batch_size
+                    if len(frame_batch) >= batch_size:
+                        batch_results = self._process_frame_batch(frame_batch, frame_indices)
+                        inference_times.extend(batch_results['inference_times'])
+                        total_detections_across_video.extend(batch_results['detections'])
 
-                        # Update video detection summary
-                        if class_name in video_detection_summary:
-                            video_detection_summary[class_name] += 1
-                        else:
-                            video_detection_summary[class_name] = 1
+                        # Update detection summary
+                        for det in batch_results['detections']:
+                            class_name = det['class_name']
+                            video_detection_summary[class_name] = video_detection_summary.get(class_name, 0) + 1
 
-                # Draw results on frame
-                last_annotated_frame = results[0].plot()
-                last_frame_detections = frame_detections
+                        # Store last annotated frame for skipped frames
+                        last_annotated_frame = batch_results['annotated_frames'][-1]
+                        last_frame_detections = [d for d in batch_results['detections']
+                                                 if d['frame_number'] == frame_indices[-1]]
 
-            # For skipped frames, use the last processed results if available
-            if last_annotated_frame is not None:
-                annotated_frame = last_annotated_frame.copy()
-                current_frame_detections = last_frame_detections if not should_process_inference else last_frame_detections
-            else:
-                # First frame before any inference - use original frame
-                annotated_frame = frame.copy()
-                current_frame_detections = []
+                        # Clear batch
+                        frame_batch = []
+                        frame_indices = []
 
-            # Add frame number and detection count to frame
-            cv2.putText(annotated_frame, f'Frame: {frame_count}',
-                       (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
-            cv2.putText(annotated_frame, f'Detections: {len(current_frame_detections)}',
-                       (10, 70), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
+                        processed_frames += len(batch_results['annotated_frames'])
 
-            # Write ALL frames to output video to maintain original duration
-            out.write(annotated_frame)
+                        # Check max_frames limit
+                        if max_frames and processed_frames >= max_frames:
+                            logger.warning(f"Reached maximum processed frames limit ({max_frames}), stopping video processing")
+                            break
+                else:
+                    # Check if processing was cancelled (client disconnected)
+                    if self._stop_event.is_set():
+                        logger.warning("Video processing cancelled by client")
+                        # Clean up partial output file
+                        if os.path.exists(output_path):
+                            try:
+                                os.remove(output_path)
+                                logger.info(f"Removed partial output file: {output_path}")
+                            except Exception as e:
+                                logger.warning(f"Failed to remove partial output file: {e}")
+                        raise InterruptedError("Video processing was cancelled")
 
-            # Progress callback
-            if progress_callback:
-                progress = (frame_count / total_frames) * 100
-                progress_callback(progress, frame_count, total_frames, len(current_frame_detections))
+                    # For skipped frames, use the last processed results if available
+                    if last_annotated_frame is not None:
+                        annotated_frame = last_annotated_frame.copy()
+                        current_frame_detections = last_frame_detections
+                    else:
+                        # First frame before any inference - use original frame
+                        annotated_frame = frame.copy()
+                        current_frame_detections = []
 
-            frame_count += 1
+                    # Add frame number and detection count to frame
+                    cv2.putText(annotated_frame, f'Frame: {frame_count}',
+                               (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
+                    cv2.putText(annotated_frame, f'Detections: {len(current_frame_detections)}',
+                               (10, 70), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
 
-        # Release resources
-        cap.release()
-        out.release()
+                    # Write ALL frames to output video to maintain original duration
+                    out.write(annotated_frame)
+
+                    # Progress callback
+                    if progress_callback:
+                        progress = (frame_count / total_frames) * 100
+                        progress_callback(progress, frame_count, total_frames, len(current_frame_detections))
+
+                    frame_count += 1
+
+            # Process remaining frames in batch
+            if frame_batch:
+                batch_results = self._process_frame_batch(frame_batch, frame_indices)
+                inference_times.extend(batch_results['inference_times'])
+                total_detections_across_video.extend(batch_results['detections'])
+
+                # Update detection summary
+                for det in batch_results['detections']:
+                    class_name = det['class_name']
+                    video_detection_summary[class_name] = video_detection_summary.get(class_name, 0) + 1
+
+        finally:
+            # Ensure resources are released
+            cap.release()
+            out.release()
+            # Clear frame batch
+            if frame_batch:
+                frame_batch.clear()
+            gc.collect()
 
         # Calculate statistics
         total_processing_time = sum(inference_times) if inference_times else 0
@@ -459,9 +535,10 @@ class YOLOInference:
                 'iou_threshold': self.iou_threshold,
                 'fps': fps,
                 'frame_skip': frame_skip,
+                'batch_size': batch_size,
                 'avg_inference_time': round(avg_inference_time, 4),
                 'processing_fps': round(processing_fps, 2),
-                'processing_time': round(total_processing_time, 2),  # 添加处理时间字段
+                'processing_time': round(total_processing_time, 2),
                 'model_format': self.model_format
             },
             'detections': total_detections_across_video,
@@ -486,6 +563,74 @@ class YOLOInference:
         logger.info(f"  - Output saved to: {output_path}")
 
         return result
+
+    def _process_frame_batch(self, frame_batch: List[np.ndarray], frame_indices: List[int]) -> Dict:
+        """
+        Process a batch of frames for inference (internal method)
+        Optimized for batch processing to improve GPU utilization
+
+        Args:
+            frame_batch (List[np.ndarray]): List of frames to process
+            frame_indices (List[int]): Frame numbers for the batch
+
+        Returns:
+            dict: Batch processing results with annotated frames and detections
+        """
+        if not frame_batch:
+            return {
+                'annotated_frames': [],
+                'detections': [],
+                'inference_times': []
+            }
+
+        annotated_frames = []
+        all_detections = []
+        inference_times = []
+
+        # Process each frame in the batch
+        for frame, frame_idx in zip(frame_batch, frame_indices):
+            # Perform inference
+            inference_start = time.time()
+            results = self.model(frame, conf=self.conf_threshold, iou=self.iou_threshold)
+            inference_time = time.time() - inference_start
+            inference_times.append(inference_time)
+
+            # Get detections
+            frame_detections = []
+            if results[0].boxes is not None:
+                for box in results[0].boxes:
+                    class_id = int(box.cls[0])
+                    conf = float(box.conf[0])
+                    bbox = box.xyxy[0].cpu().numpy()
+                    class_name = self.model.names[class_id]
+
+                    detection_info = {
+                        'class_id': class_id,
+                        'class_name': class_name,
+                        'confidence': conf,
+                        'bbox': bbox.tolist(),
+                        'frame_number': frame_idx
+                    }
+
+                    frame_detections.append(detection_info)
+                    all_detections.append(detection_info)
+
+            # Draw results on frame
+            annotated_frame = results[0].plot()
+
+            # Add frame number and detection count
+            cv2.putText(annotated_frame, f'Frame: {frame_idx}',
+                       (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
+            cv2.putText(annotated_frame, f'Detections: {len(frame_detections)}',
+                       (10, 70), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
+
+            annotated_frames.append(annotated_frame)
+
+        return {
+            'annotated_frames': annotated_frames,
+            'detections': all_detections,
+            'inference_times': inference_times
+        }
 
     def detect_multiple_images(self, image_paths: List[str], output_dir: str,
                             progress_callback: Optional[callable] = None,
@@ -617,12 +762,79 @@ class YOLOInference:
     def change_model(self, new_model_path: str):
         """
         Change the YOLO model being used
+        Now uses caching mechanism for faster model switching
 
         Args:
             new_model_path (str): Path to new YOLO model file or model name
         """
         self.model_path = new_model_path
+        self.model_format = self._detect_model_format(new_model_path)
+
+        # Check if model is already cached
+        with CACHE_LOCK:
+            cache_key = f"{new_model_path}_{self.model_format}"
+            if cache_key in MODEL_CACHE:
+                logger.info(f"Loading model from cache: {new_model_path}")
+                self.model = MODEL_CACHE[cache_key]
+                return
+
+        # Load and cache the model
         self.load_model()
+
+        # Add to cache
+        with CACHE_LOCK:
+            MODEL_CACHE[cache_key] = self.model
+            logger.info(f"Model cached: {cache_key}")
+
+
+def preload_models(model_list: List[str] = None, max_cache_size: int = 5):
+    """
+    Preload commonly used models into cache for faster access
+
+    Args:
+        model_list (List[str]): List of model names to preload (default: common models)
+        max_cache_size (int): Maximum number of models to keep in cache
+    """
+    if model_list is None:
+        model_list = [
+            'yolo11n.pt',
+            'yolov8n.pt',
+            'yolov5n.pt'
+        ]
+
+    logger.info(f"Preloading {len(model_list)} models...")
+
+    for model_path in model_list[:max_cache_size]:
+        try:
+            cache_key = f"{model_path}_pytorch"
+            if cache_key not in MODEL_CACHE:
+                logger.info(f"Preloading model: {model_path}")
+                model = YOLO(model_path)
+                with CACHE_LOCK:
+                    MODEL_CACHE[cache_key] = model
+                logger.info(f"Successfully preloaded: {model_path}")
+        except Exception as e:
+            logger.warning(f"Failed to preload model {model_path}: {str(e)}")
+
+    logger.info(f"Model preloading complete. Cache size: {len(MODEL_CACHE)}")
+
+
+def clear_model_cache():
+    """Clear the model cache to free memory"""
+    with CACHE_LOCK:
+        MODEL_CACHE.clear()
+        gc.collect()
+        logger.info("Model cache cleared")
+
+
+def get_cache_info() -> Dict:
+    """Get information about the current model cache"""
+    with CACHE_LOCK:
+        return {
+            'cached_models': list(MODEL_CACHE.keys()),
+            'cache_size': len(MODEL_CACHE),
+            'cache_memory_mb': sum(getattr(model, '__sizeof__', lambda: 0)() for model in MODEL_CACHE.values()) / (1024 * 1024)
+        }
 
 
 # Global instance of the inference class

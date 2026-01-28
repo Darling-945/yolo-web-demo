@@ -2,11 +2,15 @@ from flask import Flask, render_template, request, redirect, url_for, flash, jso
 import os
 import json
 import numpy as np
+import time
+import socket
+import select
 from model_inference import yolo_inference, get_available_models
 from run import get_config
 from utils import secure_file_upload, secure_multiple_files_upload, log_security_event, setup_app_logging, process_inference_parameters, generate_unique_filename, normalize_static_path
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
+import threading
 
 # Initialize Flask app
 app = Flask(__name__, static_folder='static', static_url_path='/static')
@@ -42,6 +46,67 @@ limiter = Limiter(
 )
 
 logger.info("YOLO Web Demo started")
+
+
+def is_client_connected() -> bool:
+    """
+    Check if the client is still connected.
+    Returns False if client has disconnected, True otherwise.
+    """
+    try:
+        # Try to get the werkzeug socket
+        wsgi_input = request.environ.get('wsgi.input')
+        if wsgi_input is None:
+            return False
+
+        # Try to peek at the stream - if client disconnected, this will fail or return empty
+        # Use a non-blocking check
+        import select
+        if hasattr(wsgi_input, '_sock'):
+            # Check if socket is still readable (has data or error)
+            readable, _, _ = select.select([wsgi_input._sock], [], [], 0)
+            if readable:
+                # There's data available - try to read it
+                try:
+                    data = wsgi_input._sock.recv(1, socket.MSG_PEEK | socket.MSG_DONTWAIT)
+                    if not data:
+                        # Connection closed
+                        return False
+                except:
+                    # Error checking connection - assume disconnected
+                    return False
+        return True
+    except Exception:
+        # If any error occurs, assume client is still connected
+        # to avoid false positives
+        return True
+
+
+def start_client_disconnect_monitor(yolo_instance, timeout_seconds=300):
+    """
+    Start a background thread that monitors client connection and cancels processing if disconnected.
+    """
+    def monitor():
+        start_time = time.time()
+        while True:
+            # Timeout check
+            if time.time() - start_time > timeout_seconds:
+                logger.warning("Video processing timeout - cancelling")
+                yolo_instance.cancel_video_processing()
+                break
+
+            # Check client connection
+            if not is_client_connected():
+                logger.warning("Client disconnected - cancelling video processing")
+                yolo_instance.cancel_video_processing()
+                break
+
+            # Check every 100ms
+            time.sleep(0.1)
+
+    thread = threading.Thread(target=monitor, daemon=True)
+    thread.start()
+    return thread
 
 
 # Template context processor for path utilities
@@ -125,12 +190,24 @@ def infer():
 
                 # Process based on file type
                 if file_type == 'video':
-                    result = yolo_inference.detect_video(
-                        file_path,
-                        output_path,
-                        frame_skip=1,  # Process all frames to maintain full duration
-                        max_frames=None  # No limit to maintain full video duration
-                    )
+                    # Start client disconnect monitoring thread
+                    monitor_thread = start_client_disconnect_monitor(yolo_inference)
+
+                    try:
+                        result = yolo_inference.detect_video(
+                            file_path,
+                            output_path,
+                            frame_skip=1,  # Process all frames to maintain full duration
+                            max_frames=None  # No limit to maintain full video duration
+                        )
+                    except InterruptedError:
+                        # Video processing was cancelled due to client disconnect
+                        logger.info("Video processing cancelled due to client disconnect")
+                        flash('视频处理已取消（客户端断开连接）', 'warning')
+                        return redirect(url_for('home'))
+                    finally:
+                        # Ensure the monitor thread stops
+                        monitor_thread.join(timeout=1)
                 else:
                     result = yolo_inference.detect(file_path, output_path)
 
@@ -225,12 +302,23 @@ def infer():
                         video_output_path = os.path.join(video_output_dir, f"{video_name}_detected.mp4")
 
                         try:
-                            video_result = yolo_inference.detect_video(
-                                video_file['file_path'],
-                                video_output_path,
-                                frame_skip=1,  # Process all frames to maintain full duration
-                                max_frames=None  # No limit to maintain full video duration
-                            )
+                            # Start client disconnect monitoring thread
+                            monitor_thread = start_client_disconnect_monitor(yolo_inference)
+
+                            try:
+                                video_result = yolo_inference.detect_video(
+                                    video_file['file_path'],
+                                    video_output_path,
+                                    frame_skip=1,  # Process all frames to maintain full duration
+                                    max_frames=None  # No limit to maintain full video duration
+                                )
+                            except InterruptedError:
+                                # Video processing was cancelled due to client disconnect
+                                logger.info("Batch video processing cancelled due to client disconnect")
+                                raise
+                            finally:
+                                # Ensure the monitor thread stops
+                                monitor_thread.join(timeout=1)
 
                             # Add batch info to video result
                             video_result['original_filename'] = video_file['original_filename']
@@ -520,12 +608,29 @@ def batch_inference():
                     video_output_path = os.path.join(video_output_dir, f"{video_name}_detected.mp4")
 
                     try:
-                        video_result = yolo_inference.detect_video(
-                            video_file['file_path'],
-                            video_output_path,
-                            frame_skip=1,  # Process all frames to maintain full duration
-                            max_frames=None  # No limit to maintain full video duration
-                        )
+                        # Start client disconnect monitoring thread
+                        monitor_thread = start_client_disconnect_monitor(yolo_inference)
+
+                        try:
+                            video_result = yolo_inference.detect_video(
+                                video_file['file_path'],
+                                video_output_path,
+                                frame_skip=1,  # Process all frames to maintain full duration
+                                max_frames=None  # No limit to maintain full video duration
+                            )
+                        except InterruptedError:
+                            # Video processing was cancelled due to client disconnect
+                            logger.info("Batch API video processing cancelled due to client disconnect")
+                            results.append({
+                                'error': 'Processing cancelled - client disconnected',
+                                'original_filename': video_file['original_filename'],
+                                'file_type': 'video',
+                                'success': False
+                            })
+                            continue
+                        finally:
+                            # Ensure the monitor thread stops
+                            monitor_thread.join(timeout=1)
 
                         video_result['original_filename'] = video_file['original_filename']
                         video_result['batch_id'] = batch_id

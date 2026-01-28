@@ -56,16 +56,18 @@
 *.csv
 *.xls
 *.xlsx
-*.json
 *.xml
-*.yaml
-*.yml
-*.txt
 *.zip
 *.tar
 *.tar.gz
 *.rar
 *.7z
+
+# Don't ignore important config files
+!.gitignore
+!requirements.txt
+!requirement.txt
+!package-lock.json
 
 # Training artifacts
 *.log
@@ -102,7 +104,3 @@ desktop.ini
 .vscode/
 *.sublime-project
 *.sublime-workspace
-
-# Don't ignore
-!requirements.txt
-!requirement.txt

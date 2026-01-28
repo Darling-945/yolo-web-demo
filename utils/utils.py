@@ -4,24 +4,67 @@ Utility functions for YOLO Web Demo
 import os
 import time
 import logging
+import gc
+import threading
 from datetime import datetime
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 from werkzeug.utils import secure_filename
 from PIL import Image
+from concurrent.futures import ThreadPoolExecutor
 from run import get_config
 
 config_instance = get_config()
 os.makedirs(os.path.dirname(config_instance.LOG_FILE), exist_ok=True)
 
+# Add rotating file handler to prevent unlimited log growth
+from logging.handlers import RotatingFileHandler
+
 logging.basicConfig(
     level=getattr(logging, config_instance.LOG_LEVEL),
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
     handlers=[
-        logging.FileHandler(config_instance.LOG_FILE),
+        RotatingFileHandler(
+            config_instance.LOG_FILE,
+            maxBytes=10*1024*1024,  # 10MB max file size
+            backupCount=5  # Keep 5 backup files
+        ),
         logging.StreamHandler()
     ]
 )
 logger = logging.getLogger(__name__)
+
+
+# Custom exception classes for better error handling
+class YOLOError(Exception):
+    """Base exception for YOLO application errors"""
+    def __init__(self, message: str, error_code: str = "GENERIC_ERROR"):
+        self.message = message
+        self.error_code = error_code
+        super().__init__(self.message)
+
+
+class FileValidationError(YOLOError):
+    """Raised when file validation fails"""
+    def __init__(self, message: str):
+        super().__init__(message, "FILE_VALIDATION_ERROR")
+
+
+class ModelLoadError(YOLOError):
+    """Raised when model loading fails"""
+    def __init__(self, message: str):
+        super().__init__(message, "MODEL_LOAD_ERROR")
+
+
+class InferenceError(YOLOError):
+    """Raised when inference fails"""
+    def __init__(self, message: str):
+        super().__init__(message, "INFERENCE_ERROR")
+
+
+class ConfigurationError(YOLOError):
+    """Raised when configuration is invalid"""
+    def __init__(self, message: str):
+        super().__init__(message, "CONFIGURATION_ERROR")
 
 
 def is_valid_image_file(file_path: str) -> bool:
@@ -259,38 +302,66 @@ def secure_multiple_files_upload(files, upload_folder: str) -> Dict[str, Any]:
         return {'success': False, 'error': f'Upload failed: {str(e)}'}
 
 
-def cleanup_old_files(directory: str, max_age_seconds: int) -> int:
-    """Remove files older than max_age_seconds from directory"""
-    try:
-        if not os.path.exists(directory):
+def cleanup_old_files(directory: str, max_age_seconds: int, use_thread: bool = True) -> int:
+    """
+    Remove files older than max_age_seconds from directory
+    Optimized with optional async processing
+
+    Args:
+        directory (str): Directory to clean
+        max_age_seconds (int): Maximum age of files in seconds
+        use_thread (bool): Run cleanup in background thread (default: True)
+
+    Returns:
+        int: Number of files removed (0 if async)
+    """
+    def _cleanup_sync():
+        try:
+            if not os.path.exists(directory):
+                return 0
+
+            current_time = time.time()
+            cutoff_time = current_time - max_age_seconds
+            removed_count = 0
+
+            for filename in os.listdir(directory):
+                file_path = os.path.join(directory, filename)
+                if os.path.isfile(file_path) and os.path.getmtime(file_path) < cutoff_time:
+                    try:
+                        os.remove(file_path)
+                        removed_count += 1
+                    except Exception as e:
+                        logger.error(f"Failed to remove {file_path}: {str(e)}")
+
+            return removed_count
+        except Exception as e:
+            logger.error(f"Cleanup error: {str(e)}")
             return 0
 
-        current_time = time.time()
-        cutoff_time = current_time - max_age_seconds
-        removed_count = 0
-
-        for filename in os.listdir(directory):
-            file_path = os.path.join(directory, filename)
-            if os.path.isfile(file_path) and os.path.getmtime(file_path) < cutoff_time:
-                try:
-                    os.remove(file_path)
-                    removed_count += 1
-                except Exception as e:
-                    logger.error(f"Failed to remove {file_path}: {str(e)}")
-
-        return removed_count
-    except Exception as e:
-        logger.error(f"Cleanup error: {str(e)}")
+    if use_thread:
+        # Run cleanup in background thread to avoid blocking
+        cleanup_thread = threading.Thread(target=_cleanup_sync, daemon=True)
+        cleanup_thread.start()
         return 0
+    else:
+        return _cleanup_sync()
 
 
 def schedule_file_cleanup():
-    """Clean up old files in upload and output directories"""
+    """Clean up old files in upload and output directories (runs in background)"""
     cfg = get_config()
-    upload_removed = cleanup_old_files(cfg.UPLOAD_FOLDER, cfg.MAX_FILE_AGE)
-    output_removed = cleanup_old_files(cfg.OUTPUT_FOLDER, cfg.MAX_FILE_AGE)
+    upload_removed = cleanup_old_files(cfg.UPLOAD_FOLDER, cfg.MAX_FILE_AGE, use_thread=False)
+    output_removed = cleanup_old_files(cfg.OUTPUT_FOLDER, cfg.MAX_FILE_AGE, use_thread=False)
     if upload_removed > 0 or output_removed > 0:
         logger.info(f"Cleanup: {upload_removed} upload, {output_removed} output files removed")
+
+
+def schedule_async_file_cleanup():
+    """Trigger async file cleanup (non-blocking)"""
+    cfg = get_config()
+    cleanup_old_files(cfg.UPLOAD_FOLDER, cfg.MAX_FILE_AGE, use_thread=True)
+    cleanup_old_files(cfg.OUTPUT_FOLDER, cfg.MAX_FILE_AGE, use_thread=True)
+    logger.info("Async cleanup scheduled")
 
 
 def log_security_event(event_type: str, details: Dict[str, Any]):
@@ -378,3 +449,60 @@ def generate_unique_filename(original_filename: str) -> str:
     """Generate unique filename for output image"""
     from uuid import uuid4
     return f"{uuid4()}_{original_filename}"
+
+
+class PerformanceMonitor:
+    """Performance monitoring utility for tracking inference performance"""
+
+    def __init__(self):
+        self.metrics = {
+            'inference_times': [],
+            'memory_usage': [],
+            'request_count': 0,
+            'error_count': 0
+        }
+        self.lock = threading.Lock()
+
+    def record_inference(self, inference_time: float, memory_mb: Optional[float] = None):
+        """Record inference performance metrics"""
+        with self.lock:
+            self.metrics['inference_times'].append(inference_time)
+            self.metrics['request_count'] += 1
+            if memory_mb:
+                self.metrics['memory_usage'].append(memory_mb)
+
+    def record_error(self):
+        """Record an error occurrence"""
+        with self.lock:
+            self.metrics['error_count'] += 1
+
+    def get_statistics(self) -> Dict[str, Any]:
+        """Get performance statistics"""
+        with self.lock:
+            inference_times = self.metrics['inference_times']
+            memory_usage = self.metrics['memory_usage']
+
+            return {
+                'total_requests': self.metrics['request_count'],
+                'total_errors': self.metrics['error_count'],
+                'error_rate': self.metrics['error_count'] / max(self.metrics['request_count'], 1),
+                'avg_inference_time': sum(inference_times) / max(len(inference_times), 1) if inference_times else 0,
+                'min_inference_time': min(inference_times) if inference_times else 0,
+                'max_inference_time': max(inference_times) if inference_times else 0,
+                'avg_memory_mb': sum(memory_usage) / max(len(memory_usage), 1) if memory_usage else 0,
+                'sample_count': len(inference_times)
+            }
+
+    def reset(self):
+        """Reset all metrics"""
+        with self.lock:
+            self.metrics = {
+                'inference_times': [],
+                'memory_usage': [],
+                'request_count': 0,
+                'error_count': 0
+            }
+
+
+# Global performance monitor instance
+performance_monitor = PerformanceMonitor()
