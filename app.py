@@ -162,29 +162,35 @@ def is_client_connected() -> bool:
     Check if the client is still connected.
     Returns False if client has disconnected, True otherwise.
     """
+    import sys
     try:
         # Try to get the werkzeug socket
         wsgi_input = request.environ.get('wsgi.input')
         if wsgi_input is None:
             return False
 
-        # Try to peek at the stream - if client disconnected, this will fail or return empty
-        # Use a non-blocking check
-        import select
-        if hasattr(wsgi_input, '_sock'):
-            # Check if socket is still readable (has data or error)
-            readable, _, _ = select.select([wsgi_input._sock], [], [], 0)
-            if readable:
-                # There's data available - try to read it
-                try:
-                    data = wsgi_input._sock.recv(1, socket.MSG_PEEK | socket.MSG_DONTWAIT)
-                    if not data:
-                        # Connection closed
+        # Windows下简化检查，避免使用select+socket组合导致WinError 10038
+        if sys.platform == 'win32':
+            # Windows下使用更简单的检查方式
+            if hasattr(wsgi_input, 'stream'):
+                # 检查底层流状态
+                stream = wsgi_input.stream
+                if hasattr(stream, 'closed'):
+                    return not stream.closed
+            # 默认假设客户端仍然连接
+            return True
+        else:
+            # Linux/Mac下使用原有逻辑
+            if hasattr(wsgi_input, '_sock'):
+                readable, _, _ = select.select([wsgi_input._sock], [], [], 0)
+                if readable:
+                    try:
+                        data = wsgi_input._sock.recv(1, socket.MSG_PEEK | socket.MSG_DONTWAIT)
+                        if not data:
+                            return False
+                    except:
                         return False
-                except:
-                    # Error checking connection - assume disconnected
-                    return False
-        return True
+            return True
     except Exception:
         # If any error occurs, assume client is still connected
         # to avoid false positives
@@ -1027,18 +1033,106 @@ def infer_result(task_id):
     return render_template('error.html', error_message='未知任务状态'), 500
 
 
+# ============================================
+# 优化的视频流式传输
+# ============================================
+
+def send_video_partial(file_path, mimetype='video/mp4'):
+    """
+    优化的视频传输函数，支持HTTP Range请求和缓存
+    显著提高视频加载速度
+    """
+    from flask import Response
+    import os
+
+    file_size = os.path.getsize(file_path)
+    range_header = request.headers.get('Range', None)
+
+    if range_header:
+        # 解析Range头 (格式: "bytes=start-end")
+        byte_range = range_header.replace('bytes=', '').split('-')
+        start = int(byte_range[0]) if byte_range[0] else 0
+        end = int(byte_range[1]) if len(byte_range) > 1 and byte_range[1] else file_size - 1
+
+        # 限制范围
+        if start >= file_size or end >= file_size:
+            return Response('Requested Range Not Satisfiable', status=416)
+
+        chunk_size = end - start + 1
+
+        def generate():
+            with open(file_path, 'rb') as f:
+                f.seek(start)
+                remaining = chunk_size
+                while remaining > 0:
+                    chunk_size_read = min(64 * 1024, remaining)  # 64KB chunks
+                    data = f.read(chunk_size_read)
+                    if not data:
+                        break
+                    remaining -= len(data)
+                    yield data
+
+        response = Response(
+            generate(),
+            206,  # Partial Content
+            mimetype=mimetype,
+            direct_passthrough=True
+        )
+        response.headers.add('Content-Range', f'bytes {start}-{end}/{file_size}')
+        response.headers.add('Accept-Ranges', 'bytes')
+        response.headers.add('Content-Length', str(chunk_size))
+    else:
+        # 完整文件传输
+        def generate():
+            with open(file_path, 'rb') as f:
+                while True:
+                    chunk = f.read(64 * 1024)  # 64KB chunks
+                    if not chunk:
+                        break
+                    yield chunk
+
+        response = Response(
+            generate(),
+            200,
+            mimetype=mimetype,
+            direct_passthrough=True
+        )
+        response.headers.add('Content-Length', str(file_size))
+        response.headers.add('Accept-Ranges', 'bytes')
+
+    # 添加缓存头 - 24小时缓存
+    response.headers.add('Cache-Control', 'public, max-age=86400, immutable')
+    # 添加ETag支持条件请求
+    response.headers.add('ETag', f'"{os.path.getmtime(file_path)}-{file_size}"')
+
+    return response
+
+
 # Enhanced static file serving for videos
 @app.route('/static/<path:filename>')
 def custom_static(filename):
-    """Enhanced static file serving with better video support"""
+    """Enhanced static file serving with better video support and caching"""
     from flask import send_from_directory
     import mimetypes
+    import os
+
+    file_path = os.path.join('static', filename)
+
+    # Check if file exists
+    if not os.path.exists(file_path):
+        return {'success': False, 'error': 'File not found'}, 404
 
     # Determine MIME type
     mimetype, _ = mimetypes.guess_type(filename)
 
-    # Ensure video files have proper MIME type
-    if filename.lower().endswith(('.mp4', '.avi', '.mov', '.mkv')):
-        mimetype = 'video/mp4'
+    # For video files, use optimized streaming
+    if filename.lower().endswith(('.mp4', '.avi', '.mov', '.mkv', '.webm')):
+        if mimetype is None or not mimetype.startswith('video/'):
+            mimetype = 'video/mp4'
+        return send_video_partial(file_path, mimetype)
+
+    # For other files, use standard serving
+    if mimetype is None:
+        mimetype = 'application/octet-stream'
 
     return send_from_directory('static', filename, mimetype=mimetype)

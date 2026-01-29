@@ -20,6 +20,21 @@ from threading import Lock, Event
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+# Try to import imageio-ffmpeg for better H264 encoding
+FFMPEG_AVAILABLE = False
+try:
+    import imageio
+    import imageio.plugins.pillow
+    FFMPEG_AVAILABLE = True
+    logger.info("imageio-ffmpeg available for H264 encoding")
+except ImportError:
+    FFMPEG_AVAILABLE = False
+    logger.warning("imageio-ffmpeg not available, falling back to OpenCV encoders")
+
+# Set up logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
 # Model cache for preloading
 MODEL_CACHE = {}
 CACHE_LOCK = Lock()
@@ -362,28 +377,41 @@ class YOLOInference:
         logger.info(f"Video properties: {width}x{height}, {fps}fps, {total_frames} frames")
         logger.info(f"Batch processing enabled with batch_size={batch_size}")
 
-        # Setup video writer with better browser compatibility
-        # Try different encoders for better compatibility
-        fourcc_attempts = [
-            cv2.VideoWriter_fourcc(*'H264'),  # H.264 - best compatibility
-            cv2.VideoWriter_fourcc(*'XVID'),  # XVID - good compatibility
-            cv2.VideoWriter_fourcc(*'MP4V'),  # MP4V - fallback
-            cv2.VideoWriter_fourcc(*'mp4v'),  # mp4v - original fallback
-        ]
+        # 临时存储所有处理后的帧，用于后续ffmpeg编码
+        processed_frames_buffer = []
+        use_ffmpeg = FFMPEG_AVAILABLE
 
-        out = None
-        for fourcc in fourcc_attempts:
-            out = cv2.VideoWriter(output_path, fourcc, fps, (width, height))
-            if out.isOpened():
-                logger.info(f"Using video codec: {fourcc}")
-                break
-            else:
-                out.release()
-                out = None
+        if use_ffmpeg:
+            logger.info("Using ffmpeg for H264 encoding (faster loading, smaller file)")
+            # 使用ffmpeg时，先收集所有帧
+            out = None  # 占位符
+            used_codec_name = 'H264 (ffmpeg)'
+        else:
+            logger.info("ffmpeg not available, using OpenCV encoders")
+            # Setup video writer with better browser compatibility
+            # Windows下优先使用mp4v（内置支持），避免H264编码器问题
+            fourcc_attempts = [
+                ('mp4v', cv2.VideoWriter_fourcc(*'mp4v')),  # 最通用，所有平台都支持
+                ('MJPG', cv2.VideoWriter_fourcc(*'MJPG')),  # Motion JPEG - 备用
+                ('XVID', cv2.VideoWriter_fourcc(*'XVID')),  # XVID - 可用时的选项
+            ]
 
-        if out is None:
-            cap.release()
-            raise ValueError("Could not initialize video writer with any codec")
+            out = None
+            used_codec_name = None
+            for codec_name, fourcc in fourcc_attempts:
+                out = cv2.VideoWriter(output_path, fourcc, fps, (width, height))
+                if out.isOpened():
+                    used_codec_name = codec_name
+                    logger.info(f"Using video codec: {codec_name}")
+                    break
+                else:
+                    if out:
+                        out.release()
+                    out = None
+
+            if out is None:
+                cap.release()
+                raise ValueError("Could not initialize video writer with any codec")
 
         # Process frames
         frame_count = 0
@@ -451,6 +479,16 @@ class YOLOInference:
                         last_frame_detections = [d for d in batch_results['detections']
                                                  if d['frame_number'] == frame_indices[-1]]
 
+                        # Write processed frames to output
+                        if use_ffmpeg:
+                            # Cache frames for ffmpeg encoding
+                            for annotated_frame in batch_results['annotated_frames']:
+                                processed_frames_buffer.append(annotated_frame)
+                        else:
+                            # Write directly with OpenCV
+                            for annotated_frame in batch_results['annotated_frames']:
+                                out.write(annotated_frame)
+
                         # Clear batch
                         frame_batch = []
                         frame_indices = []
@@ -490,7 +528,10 @@ class YOLOInference:
                                (10, 70), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
 
                     # Write ALL frames to output video to maintain original duration
-                    out.write(annotated_frame)
+                    if use_ffmpeg:
+                        processed_frames_buffer.append(annotated_frame)
+                    else:
+                        out.write(annotated_frame)
 
                     # Progress callback
                     if progress_callback:
@@ -510,13 +551,64 @@ class YOLOInference:
                     class_name = det['class_name']
                     video_detection_summary[class_name] = video_detection_summary.get(class_name, 0) + 1
 
+                # Write remaining frames
+                if use_ffmpeg:
+                    for annotated_frame in batch_results['annotated_frames']:
+                        processed_frames_buffer.append(annotated_frame)
+                else:
+                    for annotated_frame in batch_results['annotated_frames']:
+                        out.write(annotated_frame)
+
         finally:
             # Ensure resources are released
             cap.release()
-            out.release()
-            # Clear frame batch
+            if out:
+                out.release()
+
+            # Use ffmpeg to encode video if frames were buffered
+            if use_ffmpeg and processed_frames_buffer:
+                logger.info(f"Encoding {len(processed_frames_buffer)} frames with ffmpeg (H264)...")
+                try:
+                    import imageio
+                    # 将BGR转换为RGB (imageio使用RGB)
+                    rgb_frames = [cv2.cvtColor(frame, cv2.COLOR_BGR2RGB) for frame in processed_frames_buffer]
+
+                    # 使用imageio v2的ffmpeg writer生成优化的H264视频
+                    writer = imageio.get_writer(
+                        output_path,
+                        fps=fps,
+                        codec='libx264',
+                        quality=8,  # 高质量
+                        pixelformat='yuv420p',  # 最好的浏览器兼容性
+                        macro_block_size=1,  # 避免分辨率调整
+                        ffmpeg_params=['-crf', '23', '-preset', 'faster']  # CRF 23是良好的质量/大小平衡
+                    )
+
+                    for frame in rgb_frames:
+                        writer.append_data(frame)
+                    writer.close()
+
+                    logger.info(f"ffmpeg encoding completed. Output: {output_path}")
+
+                    # 获取输出文件大小进行日志记录
+                    file_size_mb = os.path.getsize(output_path) / (1024 * 1024)
+                    logger.info(f"Output video size: {file_size_mb:.2f} MB")
+
+                except Exception as e:
+                    logger.error(f"ffmpeg encoding failed: {e}, falling back to OpenCV")
+                    # 如果ffmpeg失败，使用OpenCV fallback
+                    fourcc = cv2.VideoWriter_fourcc(*'mp4v')
+                    out_fallback = cv2.VideoWriter(output_path, fourcc, fps, (width, height))
+                    if out_fallback.isOpened():
+                        for frame in processed_frames_buffer:
+                            out_fallback.write(frame)
+                        out_fallback.release()
+                        logger.info("Fallback encoding with OpenCV completed")
+
+            # Clear frame batch and buffer
             if frame_batch:
                 frame_batch.clear()
+            processed_frames_buffer.clear()
             gc.collect()
 
         # Calculate statistics

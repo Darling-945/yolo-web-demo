@@ -167,7 +167,10 @@ def start_app(host, port, config):
         from dotenv import load_dotenv
         load_dotenv(override=True)
 
-        app.run(host=host, port=port, debug=config.DEBUG, use_reloader=config.DEBUG)
+        # Windows下禁用重载器以避免与多线程冲突
+        import sys
+        use_reloader = config.DEBUG and sys.platform != 'win32'
+        app.run(host=host, port=port, debug=config.DEBUG, use_reloader=use_reloader, threaded=True)
     except KeyboardInterrupt:
         print("\n服务器已停止")
     except Exception as e:
