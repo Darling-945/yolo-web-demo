@@ -4,6 +4,8 @@
     --primary-color: #2196F3;
     --primary-dark: #1976D2;
     --primary-light: #64B5F6;
+    --accent-color: #FF6B6B;
+    --accent-secondary: #4ECDC4;
     --secondary-color: #6c757d;
     --success-color: #28a745;
     --info-color: #17a2b8;
@@ -26,6 +28,322 @@
     --dark-text-secondary: #a0aec0;
     --dark-border-color: rgba(255, 255, 255, 0.1);
     --dark-gradient: linear-gradient(135deg, #0f0f23 0%, #1a1a2e 50%, #16213e 100%);
+}
+
+/* 深色模式样式 */
+body.dark-mode {
+    background: var(--dark-gradient);
+    color: var(--dark-text-primary);
+}
+
+body.dark-mode .navbar {
+    background: rgba(15, 15, 35, 0.95) !important;
+    border-bottom: 1px solid var(--dark-border-color);
+}
+
+body.dark-mode .main-container {
+    background: var(--dark-bg-card);
+    border: 1px solid var(--dark-border-color);
+}
+
+body.dark-mode .card {
+    background: var(--dark-bg-card);
+    border: 1px solid var(--dark-border-color);
+}
+
+body.dark-mode .feature-item {
+    background: rgba(26, 26, 46, 0.8);
+    border: 1px solid var(--dark-border-color);
+    color: var(--dark-text-primary);
+}
+
+body.dark-mode .feature-item p {
+    color: var(--dark-text-secondary);
+}
+
+body.dark-mode .upload-area {
+    background: rgba(26, 26, 46, 0.8);
+    border: 3px dashed rgba(100, 181, 246, 0.3);
+    color: var(--dark-text-primary);
+}
+
+body.dark-mode .form-control,
+body.dark-mode .form-select {
+    background: rgba(26, 26, 46, 0.8);
+    border: 1px solid var(--dark-border-color);
+    color: var(--dark-text-primary);
+}
+
+body.dark-mode .form-control:focus,
+body.dark-mode .form-select:focus {
+    background: rgba(26, 26, 46, 0.95);
+    border-color: var(--primary-light);
+    color: var(--dark-text-primary);
+}
+
+body.dark-mode .text-muted {
+    color: var(--dark-text-secondary) !important;
+}
+
+body.dark-mode .info-card,
+body.dark-mode .summary-section,
+body.dark-mode .details-section {
+    background: rgba(26, 26, 46, 0.8);
+    border: 1px solid var(--dark-border-color);
+    color: var(--dark-text-primary);
+}
+
+body.dark-mode .statistics-card {
+    background: var(--dark-bg-card);
+    border: 1px solid var(--dark-border-color);
+}
+
+body.dark-mode .table {
+    color: var(--dark-text-primary);
+}
+
+body.dark-mode .table th {
+    background: rgba(33, 150, 243, 0.1);
+    border-color: var(--dark-border-color);
+}
+
+body.dark-mode .table td {
+    border-color: var(--dark-border-color);
+}
+
+/* 深色模式下的配置区域样式 */
+body.dark-mode .config-section {
+    background: var(--dark-bg-card);
+    border: 1px solid var(--dark-border-color);
+}
+
+body.dark-mode .config-section .card-title,
+body.dark-mode .config-section .form-label,
+body.dark-mode .config-section h5,
+body.dark-mode .config-section h6 {
+    color: var(--dark-text-primary) !important;
+}
+
+body.dark-mode .config-section .form-label i,
+body.dark-mode .config-section .card-title i {
+    color: var(--primary-light) !important;
+}
+
+body.dark-mode .config-section optgroup {
+    background: var(--dark-bg-secondary);
+    color: var(--dark-text-primary);
+}
+
+body.dark-mode .config-section select option {
+    background: var(--dark-bg-secondary);
+    color: var(--dark-text-primary);
+}
+
+/* 深色模式下的其他卡片标题样式 */
+body.dark-mode .card-title,
+body.dark-mode .card h1,
+body.dark-mode .card h2,
+body.dark-mode .card h3,
+body.dark-mode .card h4,
+body.dark-mode .card h5,
+body.dark-mode .card h6 {
+    color: var(--dark-text-primary) !important;
+}
+
+body.dark-mode .card .display-4,
+body.dark-mode .card .display-6 {
+    color: var(--dark-text-primary) !important;
+}
+
+body.dark-mode .lead,
+body.dark-mode .text-primary,
+body.dark-mode .text-success,
+body.dark-mode .text-info,
+body.dark-mode .text-warning,
+body.dark-mode .text-danger {
+    color: var(--dark-text-secondary) !important;
+}
+
+body.dark-mode .text-primary {
+    color: var(--primary-light) !important;
+}
+
+body.dark-mode .text-success {
+    color: #6fd989 !important;
+}
+
+body.dark-mode .text-info {
+    color: #7ed8e6 !important;
+}
+
+body.dark-mode .text-warning {
+    color: #ffd86b !important;
+}
+
+/* 深色模式下的链接样式 */
+body.dark-mode a {
+    color: var(--primary-light);
+}
+
+body.dark-mode a:hover {
+    color: var(--primary-color);
+}
+
+/* 深色模式下的图标样式 */
+body.dark-mode .fas,
+body.dark-mode .far,
+body.dark-mode .fab,
+body.dark-mode .fa-solid,
+body.dark-mode .fa-regular {
+    color: var(--dark-text-primary);
+}
+
+body.dark-mode .fa-primary,
+body.dark-mode [class*="text-primary"] .fas,
+body.dark-mode [class*="text-primary"] .far {
+    color: var(--primary-light) !important;
+}
+
+/* 主题切换按钮样式 */
+.theme-toggle {
+    background: transparent;
+    border: 2px solid var(--primary-color);
+    border-radius: 50%;
+    width: 40px;
+    height: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    color: var(--primary-color);
+}
+
+.theme-toggle:hover {
+    background: var(--primary-color);
+    color: white;
+    transform: rotate(15deg) scale(1.1);
+}
+
+.theme-toggle:active {
+    transform: rotate(15deg) scale(0.95);
+}
+
+/* 深色模式下的Toast通知样式 */
+body.dark-mode .custom-toast {
+    background: rgba(26, 26, 46, 0.95);
+    backdrop-filter: blur(20px);
+    border: 1px solid var(--dark-border-color);
+    color: var(--dark-text-primary);
+    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
+}
+
+body.dark-mode .custom-toast.success {
+    border-left-color: var(--success-color);
+}
+
+body.dark-mode .custom-toast.error {
+    border-left-color: var(--danger-color);
+}
+
+body.dark-mode .custom-toast.warning {
+    border-left-color: var(--warning-color);
+}
+
+body.dark-mode .custom-toast.info {
+    border-left-color: var(--info-color);
+}
+
+/* 深色模式下的Flash消息样式 */
+body.dark-mode .flash-messages .alert {
+    background: rgba(26, 26, 46, 0.95);
+    backdrop-filter: blur(20px);
+    border: 1px solid var(--dark-border-color);
+    color: var(--dark-text-primary);
+}
+
+body.dark-mode .flash-messages .alert-success {
+    background: rgba(40, 167, 69, 0.2);
+    border-color: var(--success-color);
+}
+
+body.dark-mode .flash-messages .alert-danger {
+    background: rgba(220, 53, 69, 0.2);
+    border-color: var(--danger-color);
+}
+
+body.dark-mode .flash-messages .alert-warning {
+    background: rgba(255, 193, 7, 0.2);
+    border-color: var(--warning-color);
+}
+
+body.dark-mode .flash-messages .alert-info {
+    background: rgba(23, 162, 184, 0.2);
+    border-color: var(--info-color);
+}
+
+/* 深色模式下的按钮样式 */
+body.dark-mode .btn-primary {
+    background: linear-gradient(135deg, #2196F3 0%, #1976D2 100%);
+    border-color: var(--primary-color);
+}
+
+body.dark-mode .btn-outline-primary {
+    color: var(--primary-light);
+    border-color: var(--primary-light);
+}
+
+body.dark-mode .btn-outline-primary:hover {
+    background: var(--primary-color);
+    border-color: var(--primary-color);
+    color: white;
+}
+
+body.dark-mode .btn-outline-secondary {
+    color: var(--dark-text-secondary);
+    border-color: var(--dark-border-color);
+}
+
+body.dark-mode .btn-outline-info {
+    color: var(--info-color);
+    border-color: var(--info-color);
+}
+
+body.dark-mode .btn-outline-info:hover {
+    background: var(--info-color);
+    color: white;
+}
+
+/* 深色模式下的徽章样式 */
+body.dark-mode .badge {
+    background: rgba(33, 150, 243, 0.2);
+    color: var(--primary-light);
+    border: 1px solid rgba(33, 150, 243, 0.3);
+}
+
+body.dark-mode .badge.bg-primary {
+    background: rgba(33, 150, 243, 0.3) !important;
+    color: var(--primary-light) !important;
+}
+
+body.dark-mode .badge.bg-success {
+    background: rgba(40, 167, 69, 0.3) !important;
+    color: #6fd989 !important;
+}
+
+body.dark-mode .badge.bg-info {
+    background: rgba(23, 162, 184, 0.3) !important;
+    color: #7ed8e6 !important;
+}
+
+body.dark-mode .badge.bg-warning {
+    background: rgba(255, 193, 7, 0.3) !important;
+    color: #ffd86b !important;
+}
+
+body.dark-mode .badge.bg-secondary {
+    background: rgba(108, 117, 125, 0.3) !important;
+    color: #c5c8ca !important;
 }
 
 body {
@@ -1208,4 +1526,486 @@ img.loaded {
     .image-container img {
         max-height: 400px !important;
     }
+}
+
+/* ============================================
+   图片懒加载和骨架屏样式
+   ============================================ */
+
+/* 懒加载图片基础样式 */
+img.lazy-image {
+    opacity: 0;
+    transition: opacity 0.3s ease;
+}
+
+img.lazy-image.loaded {
+    opacity: 1;
+}
+
+img.lazy-image.loading {
+    filter: blur(5px);
+    opacity: 0.6;
+}
+
+/* 骨架屏加载动画 */
+.skeleton {
+    background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+    background-size: 200% 100%;
+    animation: skeleton-loading 1.5s infinite;
+    border-radius: 8px;
+}
+
+@keyframes skeleton-loading {
+    0% { background-position: 200% 0; }
+    100% { background-position: -200% 0; }
+}
+
+/* 骨架屏卡片 */
+.skeleton-card {
+    background: white;
+    border-radius: 12px;
+    padding: 16px;
+    box-shadow: var(--card-shadow);
+}
+
+.skeleton-card .skeleton {
+    margin-bottom: 12px;
+}
+
+.skeleton-card .skeleton:last-child {
+    margin-bottom: 0;
+}
+
+/* 深色模式下的骨架屏 */
+body.dark-mode .skeleton {
+    background: linear-gradient(90deg, #2a2a4a 25%, #3a3a5a 50%, #2a2a4a 75%);
+    background-size: 200% 100%;
+}
+
+body.dark-mode .skeleton-card {
+    background: var(--dark-bg-card);
+    border: 1px solid var(--dark-border-color);
+}
+
+/* 批量结果优化样式 */
+.result-item {
+    transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+
+.result-item:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 15px 30px rgba(33, 150, 243, 0.2);
+}
+
+/* 结果项进入动画 */
+.result-item-wrapper {
+    opacity: 0;
+    animation: fadeInUp 0.5s ease forwards;
+}
+
+/* 优化图片容器 */
+.result-media-wrapper {
+    position: relative;
+    overflow: hidden;
+    border-radius: 8px;
+    background: rgba(0, 0, 0, 0.02);
+    aspect-ratio: 4/3;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.result-media-wrapper img,
+.result-media-wrapper video {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    transition: transform 0.3s ease;
+}
+
+.result-media-wrapper img:hover {
+    transform: scale(1.05);
+}
+
+/* 深色模式下的媒体容器 */
+body.dark-mode .result-media-wrapper {
+    background: rgba(255, 255, 255, 0.05);
+}
+
+/* 文件名截断优化 */
+.filename-text {
+    display: inline-block;
+    max-width: 180px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    vertical-align: middle;
+}
+
+/* 过滤按钮样式增强 */
+.results-card .btn-group .btn {
+    transition: all 0.2s ease;
+    border-radius: 8px !important;
+}
+
+.results-card .btn-group .btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(33, 150, 243, 0.2);
+}
+
+.results-card .btn-group .btn.active {
+    box-shadow: 0 4px 12px rgba(33, 150, 243, 0.3);
+}
+
+/* 深色模式下的过滤按钮 */
+body.dark-mode .results-card .btn-group .btn {
+    border-color: var(--dark-border-color);
+    color: var(--dark-text-primary);
+}
+
+body.dark-mode .results-card .btn-group .btn.active {
+    background: var(--primary-color);
+    border-color: var(--primary-color);
+    color: white;
+}
+
+/* 图片预加载提示 */
+.loading-hint {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    color: var(--primary-color);
+    font-size: 0.9rem;
+    pointer-events: none;
+}
+
+/* 加载进度环 */
+.loading-ring {
+    display: inline-block;
+    width: 40px;
+    height: 40px;
+}
+
+.loading-ring::after {
+    content: " ";
+    display: block;
+    width: 32px;
+    height: 32px;
+    margin: 4px;
+    border-radius: 50%;
+    border: 3px solid var(--primary-color);
+    border-color: var(--primary-color) transparent var(--primary-color) transparent;
+    animation: ring-spin 1.2s linear infinite;
+}
+
+@keyframes ring-spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+/* 优化移动端批量结果网格 */
+@media (min-width: 1400px) {
+    .results-grid .col-lg-3 {
+        flex: 0 0 20%;
+        max-width: 20%;
+    }
+}
+
+@media (min-width: 1200px) and (max-width: 1399px) {
+    .results-grid .col-lg-3 {
+        flex: 0 0 25%;
+        max-width: 25%;
+    }
+}
+
+@media (max-width: 576px) {
+    .result-item-wrapper {
+        flex: 0 0 100%;
+        max-width: 100%;
+    }
+
+    .filename-text {
+        max-width: 120px;
+    }
+
+    .result-media-wrapper {
+        aspect-ratio: 16/9;
+    }
+}
+
+/* 图片预加载优化 */
+img[loading="lazy"] {
+    background-color: #f0f0f0;
+    min-height: 50px;
+}
+
+body.dark-mode img[loading="lazy"] {
+    background-color: #2a2a4a;
+}
+
+/* ============================================
+   视频播放器优化样式
+   ============================================ */
+
+/* 视频容器 */
+.video-wrapper,
+.video-container {
+    position: relative;
+    background: #000;
+    border-radius: 12px;
+    overflow: hidden;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.video-wrapper {
+    min-height: 200px;
+}
+
+/* 视频播放器基础样式 */
+video.video-player {
+    width: 100%;
+    height: auto;
+    display: block;
+    background: #000;
+    border-radius: 8px;
+    transition: transform 0.3s ease;
+}
+
+video.video-player:hover {
+    transform: scale(1.01);
+}
+
+/* 视频骨架屏 */
+.video-skeleton {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: linear-gradient(135deg, #1a1a2e 0%, #2a2a4a 100%);
+    z-index: 10;
+    transition: opacity 0.3s ease;
+}
+
+.video-skeleton .skeleton-content {
+    text-align: center;
+    color: var(--dark-text-primary);
+    padding: 2rem;
+}
+
+/* 视频信息显示 */
+.video-info {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 10px 16px;
+    background: rgba(0, 0, 0, 0.05);
+    border-radius: 8px;
+    font-size: 0.875rem;
+}
+
+.video-info i {
+    opacity: 0.7;
+}
+
+/* 视频卡片样式 */
+.video-card {
+    transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+
+.video-card:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 15px 35px rgba(33, 150, 243, 0.15);
+}
+
+/* 视频对比区域 */
+.video-comparison-section {
+    position: relative;
+}
+
+/* 同步播放控制按钮 */
+.video-sync-controls {
+    display: flex;
+    justify-content: center;
+    gap: 10px;
+    margin-top: 15px;
+}
+
+.video-sync-controls .btn {
+    border-radius: 50%;
+    width: 45px;
+    height: 45px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+}
+
+/* 深色模式下的视频容器 */
+body.dark-mode .video-wrapper,
+body.dark-mode .video-container {
+    background: #000;
+    border-color: var(--dark-border-color);
+}
+
+body.dark-mode .video-info {
+    background: rgba(255, 255, 255, 0.05);
+    color: var(--dark-text-secondary);
+}
+
+/* 响应式视频高度 */
+@media (max-width: 576px) {
+    .video-player,
+    video.video-player {
+        max-height: 200px !important;
+    }
+
+    .video-wrapper,
+    .video-container {
+        min-height: 150px;
+    }
+
+    .video-info {
+        font-size: 0.75rem;
+        padding: 8px 12px;
+    }
+}
+
+@media (min-width: 577px) and (max-width: 768px) {
+    .video-player,
+    video.video-player {
+        max-height: 280px !important;
+    }
+}
+
+@media (min-width: 769px) and (max-width: 1024px) {
+    .video-player,
+    video.video-player {
+        max-height: 350px !important;
+    }
+}
+
+@media (min-width: 1025px) {
+    .video-player,
+    video.video-player {
+        max-height: 400px !important;
+    }
+}
+
+/* 视频对比区域移动端优化 */
+@media (max-width: 991px) {
+    .video-comparison-section .col-lg-6 {
+        margin-bottom: 2rem;
+    }
+}
+
+/* 视频加载状态提示 */
+.video-loading-hint {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    text-align: center;
+    color: var(--primary-color);
+    z-index: 5;
+}
+
+.video-loading-hint i {
+    font-size: 2rem;
+    animation: pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes pulse {
+    0%, 100% { opacity: 0.4; transform: scale(1); }
+    50% { opacity: 1; transform: scale(1.1); }
+}
+
+/* 视频控制栏自定义样式 */
+video::-webkit-media-controls-panel {
+    background: rgba(0, 0, 0, 0.8);
+}
+
+video::-webkit-media-controls-play-button {
+    color: var(--primary-color);
+}
+
+video::-webkit-media-controls-timeline {
+    background: rgba(255, 255, 255, 0.2);
+}
+
+video::-webkit-media-controls-volume-slider {
+    background: rgba(255, 255, 255, 0.3);
+}
+
+/* 视频缩略图预览 */
+.video-thumbnail {
+    width: 100%;
+    aspect-ratio: 16/9;
+    background: linear-gradient(135deg, #1a1a2e 0%, #2a2a4a 100%);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: transform 0.3s ease;
+}
+
+.video-thumbnail:hover {
+    transform: scale(1.02);
+}
+
+.video-thumbnail i {
+    font-size: 3rem;
+    color: var(--primary-color);
+    opacity: 0.7;
+}
+
+/* 深色模式下的视频缩略图 */
+body.dark-mode .video-thumbnail {
+    background: linear-gradient(135deg, #0f0f23 0%, #1a1a2e 100%);
+}
+
+/* 视频错误状态 */
+.video-error {
+    background: rgba(220, 53, 69, 0.1);
+    border: 2px dashed var(--danger-color);
+    border-radius: 12px;
+    padding: 2rem;
+    text-align: center;
+}
+
+.video-error i {
+    color: var(--danger-color);
+    font-size: 2.5rem;
+    margin-bottom: 1rem;
+}
+
+/* 视频下载提示 */
+.video-download-hint {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 16px;
+    background: rgba(33, 150, 243, 0.1);
+    border-radius: 8px;
+    color: var(--primary-color);
+    font-size: 0.875rem;
+}
+
+/* 视频处理统计中的图标动画 */
+.video-stat-icon {
+    display: inline-block;
+    animation: float 3s ease-in-out infinite;
+}
+
+@keyframes float {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-5px); }
 }

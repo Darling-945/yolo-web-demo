@@ -5,12 +5,14 @@ import numpy as np
 import time
 import socket
 import select
+import uuid
+import threading
 from model_inference import yolo_inference, get_available_models
 from run import get_config
 from utils import secure_file_upload, secure_multiple_files_upload, log_security_event, setup_app_logging, process_inference_parameters, generate_unique_filename, normalize_static_path
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
-import threading
+from collections import defaultdict
 
 # Initialize Flask app
 app = Flask(__name__, static_folder='static', static_url_path='/static')
@@ -47,6 +49,113 @@ limiter = Limiter(
 
 logger.info("YOLO Web Demo started")
 
+# ============================================
+# 异步推理进度跟踪系统
+# ============================================
+
+# 全局任务存储
+inference_tasks = {}
+tasks_lock = threading.Lock()
+
+
+def create_task(task_type='image', file_info=None):
+    """创建新的推理任务"""
+    task_id = str(uuid.uuid4())
+    task = {
+        'id': task_id,
+        'type': task_type,  # 'image' 或 'video'
+        'status': 'pending',  # pending, processing, completed, failed, cancelled
+        'progress': 0,
+        'message': '任务已创建，等待处理...',
+        'file_info': file_info,
+        'result': None,
+        'error': None,
+        'created_at': time.time(),
+        'started_at': None,
+        'completed_at': None
+    }
+
+    with tasks_lock:
+        inference_tasks[task_id] = task
+
+    logger.info(f"Created inference task: {task_id} (type: {task_type})")
+    return task_id
+
+
+def update_task_progress(task_id, progress, message, status='processing'):
+    """更新任务进度"""
+    with tasks_lock:
+        if task_id in inference_tasks:
+            inference_tasks[task_id]['progress'] = progress
+            inference_tasks[task_id]['message'] = message
+            inference_tasks[task_id]['status'] = status
+            logger.info(f"Task {task_id}: {progress}% - {message}")
+
+
+def complete_task(task_id, result):
+    """标记任务完成"""
+    with tasks_lock:
+        if task_id in inference_tasks:
+            inference_tasks[task_id]['status'] = 'completed'
+            inference_tasks[task_id]['progress'] = 100
+            inference_tasks[task_id]['message'] = '处理完成！'
+            inference_tasks[task_id]['result'] = result
+            inference_tasks[task_id]['completed_at'] = time.time()
+            logger.info(f"Task {task_id} completed")
+
+
+def fail_task(task_id, error_message):
+    """标记任务失败"""
+    with tasks_lock:
+        if task_id in inference_tasks:
+            inference_tasks[task_id]['status'] = 'failed'
+            inference_tasks[task_id]['message'] = f'处理失败: {error_message}'
+            inference_tasks[task_id]['error'] = error_message
+            inference_tasks[task_id]['completed_at'] = time.time()
+            logger.error(f"Task {task_id} failed: {error_message}")
+
+
+def get_task(task_id):
+    """获取任务信息"""
+    with tasks_lock:
+        return inference_tasks.get(task_id)
+
+
+def cleanup_old_tasks(max_age_seconds=3600):
+    """清理旧任务"""
+    current_time = time.time()
+    with tasks_lock:
+        to_remove = []
+        for task_id, task in inference_tasks.items():
+            age = current_time - task['created_at']
+            if age > max_age_seconds:
+                to_remove.append(task_id)
+
+        for task_id in to_remove:
+            del inference_tasks[task_id]
+
+        if to_remove:
+            logger.info(f"Cleaned up {len(to_remove)} old tasks")
+
+
+# 定期清理旧任务
+def start_task_cleanup_daemon():
+    """启动任务清理守护线程"""
+    def cleanup():
+        while True:
+            time.sleep(300)  # 每5分钟清理一次
+            cleanup_old_tasks()
+
+    cleanup_thread = threading.Thread(target=cleanup, daemon=True)
+    cleanup_thread.start()
+
+
+start_task_cleanup_daemon()
+
+
+# ============================================
+# 工具函数
+# ============================================
 
 def is_client_connected() -> bool:
     """
@@ -731,6 +840,188 @@ def internal_error(e):
         'success': False,
         'error': 'Internal server error. Please try again later.'
     }, 500
+
+
+# ============================================
+# 异步推理API路由
+# ============================================
+
+@app.route('/infer/async', methods=['POST'])
+@limiter.limit(config.RATELIMIT_API)
+def infer_async():
+    """异步推理入口 - 立即返回任务ID，后台处理推理"""
+    try:
+        # 检查文件
+        files = request.files.getlist('files') if 'files' in request.files else []
+        if len(files) == 0:
+            file = request.files.get('file')
+            if file:
+                files = [file]
+
+        if not files or files[0].filename == '':
+            return {'success': False, 'error': '没有选择文件'}, 400
+
+        # 处理单个文件上传
+        upload_result = secure_file_upload(files[0], config.UPLOAD_FOLDER)
+        if not upload_result['success']:
+            return {'success': False, 'error': upload_result['error']}, 400
+
+        file_path = upload_result['file_path']
+        original_filename = upload_result['filename']
+        file_type = upload_result.get('file_type', 'image')
+
+        # 获取推理参数
+        params = process_inference_parameters(request, config)
+
+        # 创建任务
+        task_type = 'video' if file_type == 'video' else 'image'
+        task_id = create_task(task_type, {
+            'filename': original_filename,
+            'file_path': file_path,
+            'file_type': file_type
+        })
+
+        # 生成输出路径
+        unique_filename = generate_unique_filename(original_filename)
+        output_path = os.path.join(config.OUTPUT_FOLDER, unique_filename)
+
+        # 启动后台推理任务
+        def run_inference():
+            try:
+                update_task_progress(task_id, 5, '正在加载模型...', 'processing')
+
+                # 切换模型
+                if params['model_name'] != yolo_inference.model_path:
+                    yolo_inference.change_model(params['model_name'])
+
+                original_conf = yolo_inference.conf_threshold
+                original_iou = yolo_inference.iou_threshold
+                yolo_inference.conf_threshold = params['conf_threshold']
+                yolo_inference.iou_threshold = params['iou_threshold']
+
+                if file_type == 'video':
+                    update_task_progress(task_id, 10, '正在处理视频...', 'processing')
+
+                    # 创建进度回调
+                    def progress_callback(progress, frame, total, detections):
+                        percent = 10 + int((progress / 100) * 80)
+                        update_task_progress(task_id, percent, f'处理中: {frame}/{total} 帧')
+
+                    result = yolo_inference.detect_video(
+                        file_path,
+                        output_path,
+                        frame_skip=1,
+                        max_frames=None,
+                        progress_callback=progress_callback
+                    )
+                else:
+                    update_task_progress(task_id, 20, '正在进行目标检测...', 'processing')
+                    result = yolo_inference.detect(file_path, output_path)
+                    update_task_progress(task_id, 90, '正在生成结果...', 'processing')
+
+                yolo_inference.conf_threshold = original_conf
+                yolo_inference.iou_threshold = original_iou
+
+                # 任务完成
+                complete_task(task_id, {
+                    'result': result,
+                    'output_path': output_path,
+                    'input_path': file_path,
+                    'original_filename': original_filename,
+                    'file_type': file_type
+                })
+
+            except InterruptedError:
+                fail_task(task_id, '任务已被取消')
+            except Exception as e:
+                logger.error(f"Async inference error: {str(e)}")
+                fail_task(task_id, str(e))
+
+        # 启动后台线程
+        thread = threading.Thread(target=run_inference, daemon=True)
+        thread.start()
+
+        # 立即返回任务ID
+        return jsonify({
+            'success': True,
+            'task_id': task_id,
+            'message': '任务已创建，正在后台处理'
+        })
+
+    except Exception as e:
+        logger.error(f"Async infer error: {str(e)}")
+        return {'success': False, 'error': str(e)}, 500
+
+
+@app.route('/api/task/<task_id>', methods=['GET'])
+@limiter.limit('60/minute')
+def get_task_status(task_id):
+    """查询任务状态"""
+    task = get_task(task_id)
+
+    if not task:
+        return {'success': False, 'error': '任务不存在'}, 404
+
+    return jsonify({
+        'success': True,
+        'task': {
+            'id': task['id'],
+            'type': task['type'],
+            'status': task['status'],
+            'progress': task['progress'],
+            'message': task['message'],
+            'file_info': task['file_info'],
+            'created_at': task['created_at']
+        }
+    })
+
+
+@app.route('/infer/waiting/<task_id>')
+def infer_waiting(task_id):
+    """异步推理等待页面"""
+    task = get_task(task_id)
+
+    if not task:
+        return render_template('error.html', error_message='任务不存在'), 404
+
+    return render_template('infer_waiting.html',
+                         task_id=task_id,
+                         task=task,
+                         file_type=task['type'])
+
+
+@app.route('/infer/result/<task_id>')
+def infer_result(task_id):
+    """异步推理结果页面"""
+    task = get_task(task_id)
+
+    if not task:
+        return render_template('error.html', error_message='任务不存在'), 404
+
+    if task['status'] == 'pending' or task['status'] == 'processing':
+        return render_template('infer_waiting.html',
+                             task_id=task_id,
+                             task=task,
+                             file_type=task['type'])
+
+    if task['status'] == 'failed':
+        error_msg = task.get('error', '处理失败，请重试')
+        return render_template('error.html', error_message=error_msg), 500
+
+    if task['status'] == 'completed':
+        result = task['result']
+        if result['file_type'] == 'video':
+            return render_template('video_inference.html',
+                                 input_file=result['input_path'],
+                                 output_video=result['output_path'],
+                                 result=result['result'])
+        else:
+            return render_template('inference.html',
+                                 saveLocation=result['input_path'],
+                                 output_image=result['output_path'],
+                                 result=result['result'])
+
+    return render_template('error.html', error_message='未知任务状态'), 500
 
 
 # Enhanced static file serving for videos

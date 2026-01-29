@@ -39,7 +39,7 @@
         <p class="text-muted mt-4 mb-0" id="upload-help">
           支持图片格式：JPG, JPEG, PNG, WEBP, BMP, GIF, TIFF<br>
           支持视频格式：MP4, AVI, MOV, MKV, WMV, FLV, WEBM, M4V<br>
-          图片最大 16MB，视频最大 500MB
+          图片最大 50MB，视频最大 500MB
         </p>
       </div>
 
@@ -136,6 +136,22 @@
             </div>
           </div>
         </div>
+      </div>
+
+      <!-- 异步模式选项 -->
+      <div class="async-option-section text-center mb-4">
+        <div class="form-check form-switch inline-flex align-items-center gap-3 p-3 rounded-3" style="display: inline-flex; background: rgba(33, 150, 243, 0.05);">
+          <input type="checkbox" class="form-check-input" id="asyncMode" name="async_mode" style="width: 3rem; height: 1.5rem;">
+          <label class="form-check-label fw-semibold cursor-pointer" for="asyncMode" style="user-select: none;">
+            <i class="fas fa-bolt me-2" style="color: var(--warning-color);"></i>
+            异步模式
+          </label>
+          <span class="badge bg-warning text-dark" style="font-size: 0.75rem;">推荐用于视频</span>
+        </div>
+        <small class="text-muted d-block mt-2">
+          <i class="fas fa-info-circle me-1"></i>
+          开启后立即进入等待页面，后台处理推理，适合长视频或多文件
+        </small>
       </div>
 
       <!-- 检测按钮 -->
@@ -388,84 +404,74 @@ function setupIOUControls() {
 document.addEventListener('DOMContentLoaded', function() {
     setupConfidenceControls();
     setupIOUControls();
-});
 
-// 表单提交处理
-document.getElementById('uploadForm').addEventListener('submit', function(e) {
-    console.log('表单提交开始');
-    // 不阻止默认提交，让表单正常提交
-
-    const uploadBtn = document.getElementById('uploadBtn');
-    const uploadBtnText = document.getElementById('uploadBtnText');
-    const uploadSpinner = document.getElementById('uploadSpinner');
-    const progressContainer = document.getElementById('progressContainer');
-    const progressBar = document.getElementById('progressBar');
-    const progressText = document.getElementById('progressText');
-
+    // 表单提交处理
+    const uploadForm = document.getElementById('uploadForm');
+    if (uploadForm) {
+        uploadForm.addEventListener('submit', async function(e) {
     // 验证是否有文件
     const fileInput = document.getElementById('fileInput');
     if (!fileInput || !fileInput.files || !fileInput.files[0]) {
-        showToast('error', '请先选择要上传的图片', 'error');
+        showToast('error', '请先选择要上传的文件', 'error');
+        e.preventDefault();
         return;
     }
 
-    console.log('开始上传文件:', fileInput.files[0].name);
+    // 检查是否启用了异步模式
+    const asyncModeCheckbox = document.getElementById('asyncMode');
+    const asyncMode = asyncModeCheckbox && asyncModeCheckbox.checked;
 
-    // 显示加载状态
-    if (uploadBtn) uploadBtn.disabled = true;
-    if (uploadBtnText) uploadBtnText.style.display = 'none';
-    if (uploadSpinner) uploadSpinner.style.display = 'inline-block';
-    if (progressContainer) progressContainer.style.display = 'block';
+    if (asyncMode) {
+        // 异步模式 - 使用API提交
+        e.preventDefault();
+        await submitAsyncInference();
+    } else {
+        // 同步模式 - 正常提交
+        console.log('表单提交开始');
 
-    // 添加波纹效果
-    createRipple(e);
+        const uploadBtn = document.getElementById('uploadBtn');
+        const uploadBtnText = document.getElementById('uploadBtnText');
+        const uploadSpinner = document.getElementById('uploadSpinner');
+        const progressContainer = document.getElementById('progressContainer');
+        const progressBar = document.getElementById('progressBar');
+        const progressText = document.getElementById('progressText');
 
-    // 显示Toast通知
-    showToast('info', '正在上传图片并进行检测...', 'info');
+        // 显示加载状态
+        if (uploadBtn) uploadBtn.disabled = true;
+        if (uploadBtnText) uploadBtnText.style.display = 'none';
+        if (uploadSpinner) uploadSpinner.style.display = 'inline-block';
+        if (progressContainer) progressContainer.style.display = 'block';
 
-    // 模拟进度条动画
-    let progress = 0;
-    const progressInterval = setInterval(() => {
-        progress += Math.random() * 15;
-        if (progress > 90) progress = 90;
+        // 添加波纹效果
+        createRipple(e);
 
-        if (progressBar) progressBar.style.width = progress + '%';
+        // 显示Toast通知
+        showToast('info', '正在上传图片并进行检测...', 'info');
 
-        if (progress < 30) {
-            if (progressText) progressText.textContent = '正在上传图片...';
-        } else if (progress < 60) {
-            if (progressText) progressText.textContent = '正在加载模型...';
-        } else if (progress < 90) {
-            if (progressText) progressText.textContent = '正在进行目标检测...';
-        }
-    }, 200);
+        // 获取配置参数
+        const modelSelect = document.getElementById('modelSelect');
+        const confidenceInput = document.getElementById('confidenceInput');
+        const iouInput = document.getElementById('iouInput');
 
-    // 获取配置参数
-    const modelSelect = document.getElementById('modelSelect');
-    const confidenceInput = document.getElementById('confidenceInput');
-    const iouInput = document.getElementById('iouInput');
+        const model = modelSelect ? modelSelect.value : 'yolo11n.pt';
+        const confidence = confidenceInput ? confidenceInput.value : '0.25';
+        const iou = iouInput ? iouInput.value : '0.45';
 
-    const model = modelSelect ? modelSelect.value : 'yolo11n.pt';
-    const confidence = confidenceInput ? confidenceInput.value : '0.25';
-    const iou = iouInput ? iouInput.value : '0.45';
+        // 创建隐藏输入字段 - 先清理旧的
+        const existingHidden = this.querySelectorAll('input[type="hidden"]');
+        existingHidden.forEach(input => input.remove());
 
-    console.log('配置参数:', { model, confidence, iou });
+        // 创建新的隐藏输入字段
+        const modelHidden = document.createElement('input');
+        modelHidden.type = 'hidden';
+        modelHidden.name = 'model';
+        modelHidden.value = model;
+        this.appendChild(modelHidden);
 
-    // 创建隐藏输入字段 - 先清理旧的
-    const existingHidden = this.querySelectorAll('input[type="hidden"]');
-    existingHidden.forEach(input => input.remove());
-
-    // 创建新的隐藏输入字段
-    const modelHidden = document.createElement('input');
-    modelHidden.type = 'hidden';
-    modelHidden.name = 'model';
-    modelHidden.value = model;
-    this.appendChild(modelHidden);
-
-    const confidenceHidden = document.createElement('input');
-    confidenceHidden.type = 'hidden';
-    confidenceHidden.name = 'confidence';
-    confidenceHidden.value = confidence;
+        const confidenceHidden = document.createElement('input');
+        confidenceHidden.type = 'hidden';
+        confidenceHidden.name = 'confidence';
+        confidenceHidden.value = confidence;
     this.appendChild(confidenceHidden);
 
     const iouHidden = document.createElement('input');
@@ -492,7 +498,11 @@ document.getElementById('uploadForm').addEventListener('submit', function(e) {
         if (progressBar) progressBar.style.width = '100%';
         if (progressText) progressText.textContent = '处理中...';
     }, 10000); // 增加超时时间到10秒
-});
+        }  // 关闭 else 块
+        }); // 关闭 async function
+    }  // 关闭 if (uploadForm)
+}); // 关闭 DOMContentLoaded
+
 
 // 创建波纹效果
 function createRipple(e) {
@@ -519,6 +529,64 @@ function createRipple(e) {
 const uploadBtn = document.getElementById('uploadBtn');
 if (uploadBtn) {
     uploadBtn.addEventListener('click', createRipple);
+}
+
+// 异步推理提交
+async function submitAsyncInference() {
+    const uploadBtn = document.getElementById('uploadBtn');
+    const uploadBtnText = document.getElementById('uploadBtnText');
+    const uploadSpinner = document.getElementById('uploadSpinner');
+    const fileInput = document.getElementById('fileInput');
+
+    // 禁用按钮
+    if (uploadBtn) uploadBtn.disabled = true;
+    if (uploadBtnText) uploadBtnText.style.display = 'none';
+    if (uploadSpinner) uploadSpinner.style.display = 'inline-block';
+
+    showToast('info', '正在上传文件并启动异步推理任务...', 'info');
+
+    try {
+        // 准备FormData
+        const formData = new FormData();
+        formData.append('file', fileInput.files[0]);
+
+        // 获取参数
+        const modelSelect = document.getElementById('modelSelect');
+        const confidenceInput = document.getElementById('confidenceInput');
+        const iouInput = document.getElementById('iouInput');
+
+        formData.append('model', modelSelect ? modelSelect.value : 'yolo11n.pt');
+        formData.append('confidence', confidenceInput ? confidenceInput.value : '0.25');
+        formData.append('iou', iouInput ? iouInput.value : '0.45');
+
+        // 发送异步推理请求
+        const response = await fetch('/infer/async', {
+            method: 'POST',
+            body: formData
+        });
+
+        const result = await response.json();
+
+        if (result.success) {
+            showToast('success', '任务已创建，正在跳转到等待页面...', 'success');
+            // 跳转到等待页面
+            window.location.href = `/infer/waiting/${result.task_id}`;
+        } else {
+            showToast('error', result.error || '创建任务失败', 'error');
+            // 重置按钮状态
+            if (uploadBtn) uploadBtn.disabled = false;
+            if (uploadBtnText) uploadBtnText.style.display = 'inline';
+            if (uploadSpinner) uploadSpinner.style.display = 'none';
+        }
+
+    } catch (error) {
+        console.error('Async inference error:', error);
+        showToast('error', '提交失败，请重试', 'error');
+        // 重置按钮状态
+        if (uploadBtn) uploadBtn.disabled = false;
+        if (uploadBtnText) uploadBtnText.style.display = 'inline';
+        if (uploadSpinner) uploadSpinner.style.display = 'none';
+    }
 }
 
 // 处理拖拽文件

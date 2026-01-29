@@ -93,24 +93,37 @@
     <section class="results-section mb-5 mb-lg-6">
         <div class="results-card card mx-auto" style="max-width: 1400px;">
             <div class="card-header py-4">
-                <h5 class="card-title mb-0 fw-bold">
-                    <i class="fas fa-list me-2"></i>处理结果详情
-                </h5>
+                <div class="d-flex justify-content-between align-items-center">
+                    <h5 class="card-title mb-0 fw-bold">
+                        <i class="fas fa-list me-2"></i>处理结果详情
+                    </h5>
+                    <div class="btn-group btn-group-sm" role="group">
+                        <button class="btn btn-outline-secondary active" onclick="filterResults('all')" id="filterAll">
+                            <i class="fas fa-th me-1"></i>全部
+                        </button>
+                        <button class="btn btn-outline-primary" onclick="filterResults('image')" id="filterImages">
+                            <i class="fas fa-image me-1"></i>图片
+                        </button>
+                        <button class="btn btn-outline-info" onclick="filterResults('video')" id="filterVideos">
+                            <i class="fas fa-video me-1"></i>视频
+                        </button>
+                    </div>
+                </div>
             </div>
             <div class="card-body p-4">
                 {% if batch_result.results %}
-                <div class="row g-4">
+                <div class="results-grid row g-4" id="resultsContainer">
                     {% for result in batch_result.results %}
-                    <div class="col-12 col-md-6 col-lg-4">
-                        <div class="result-item card h-100 {% if not result.get('success', True) %}border-danger{% endif %}">
+                    <div class="col-12 col-sm-6 col-md-4 col-lg-3 result-item-wrapper" data-file-type="{{ result.get('file_type', 'image') }}" data-success="{{ result.get('success', True) }}">
+                        <div class="result-item card h-100 {% if not result.get('success', True) %}border-danger{% endif %}" style="transition: all 0.3s ease;">
                             <div class="card-header py-3 {% if not result.get('success', True) %}bg-danger text-white{% else %}bg-light{% endif %}">
-                                <h6 class="card-title mb-0 fw-semibold text-truncate">
+                                <h6 class="card-title mb-0 fw-semibold text-truncate" title="{{ result.get('original_filename', 'Unknown File') }}">
                                     {% if result.get('file_type') == 'video' %}
                                         <i class="fas fa-video me-2"></i>
                                     {% else %}
                                         <i class="fas fa-image me-2"></i>
                                     {% endif %}
-                                    {{ result.get('original_filename', 'Unknown File') }}
+                                    <span class="filename-text">{{ result.get('original_filename', 'Unknown File') }}</span>
                                 </h6>
                             </div>
                             <div class="card-body p-3">
@@ -118,8 +131,8 @@
                                     <!-- 成功处理的结果 -->
                                     {% if result.get('file_type') == 'video' %}
                                         <!-- 视频结果 -->
-                                        <div class="text-center mb-3">
-                                            <video controls class="img-fluid rounded-2" style="max-height: 200px;">
+                                        <div class="text-center mb-3 result-media-wrapper">
+                                            <video controls class="img-fluid rounded-2" style="max-height: 200px;" preload="metadata">
                                                 <source src="{{ url_for('static', filename=result.output_video_path.replace('static/', '')) }}" type="video/mp4">
                                                 您的浏览器不支持视频播放。
                                             </video>
@@ -138,12 +151,20 @@
                                         </div>
                                     {% else %}
                                         <!-- 图片结果 -->
-                                        <div class="text-center mb-3">
-                                            <img src="{{ url_for('static', filename=result.output_path.replace('static/', '')) }}"
-                                                 class="img-fluid rounded-2"
+                                        <div class="text-center mb-3 result-media-wrapper">
+                                            <img
+                                                src="{{ url_for('static', filename=result.output_path.replace('static/', '')) }}"
+                                                class="img-fluid rounded-2 lazy-result-image"
                                                  alt="检测结果"
-                                                 style="max-height: 200px; object-fit: contain; cursor: pointer;"
-                                                 onclick="viewFullscreen('{{ url_for('static', filename=result.output_path.replace('static/', '')) }}')">
+                                                 loading="lazy"
+                                                 decoding="async"
+                                                 style="max-height: 200px; object-fit: contain; cursor: pointer; transition: transform 0.3s ease;"
+                                                 onclick="viewFullscreen('{{ url_for('static', filename=result.output_path.replace('static/', '')) }}')"
+                                                 onload="this.classList.add('loaded')"
+                                            >
+                                            <div class="image-skeleton" style="display: none;">
+                                                <div class="skeleton-loader"></div>
+                                            </div>
                                         </div>
                                         <div class="detection-info">
                                             <div class="row text-center g-2 mb-2">
@@ -538,6 +559,193 @@ document.addEventListener('keydown', function(e) {
         downloadAllResults();
     }
 });
+
+// 过滤结果
+function filterResults(filterType) {
+    const wrappers = document.querySelectorAll('.result-item-wrapper');
+    const buttons = document.querySelectorAll('#filterAll, #filterImages, #filterVideos');
+
+    // 更新按钮状态
+    buttons.forEach(btn => btn.classList.remove('active'));
+    if (filterType === 'all') {
+        document.getElementById('filterAll').classList.add('active');
+    } else if (filterType === 'image') {
+        document.getElementById('filterImages').classList.add('active');
+    } else if (filterType === 'video') {
+        document.getElementById('filterVideos').classList.add('active');
+    }
+
+    // 过滤项目
+    let visibleCount = 0;
+    wrappers.forEach(wrapper => {
+        const fileType = wrapper.getAttribute('data-file-type');
+        const success = wrapper.getAttribute('data-success') === 'true';
+
+        if (filterType === 'all') {
+            wrapper.style.display = '';
+            visibleCount++;
+        } else if (filterType === 'image' && fileType === 'image' && success) {
+            wrapper.style.display = '';
+            visibleCount++;
+        } else if (filterType === 'video' && fileType === 'video' && success) {
+            wrapper.style.display = '';
+            visibleCount++;
+        } else {
+            wrapper.style.display = 'none';
+        }
+    });
+
+    showToast('info', `显示 ${visibleCount} 个结果`, 'info');
+}
+
+// 图片懒加载优化
+document.addEventListener('DOMContentLoaded', function() {
+    // 为懒加载图片添加加载动画
+    const lazyImages = document.querySelectorAll('.lazy-result-image');
+
+    if ('IntersectionObserver' in window) {
+        const imageObserver = new IntersectionObserver((entries, observer) => {
+            entries.forEach(entry => {
+                if (entry.isIntersecting) {
+                    const img = entry.target;
+                    img.classList.add('loading');
+
+                    img.addEventListener('load', () => {
+                        img.classList.remove('loading');
+                        img.classList.add('loaded');
+                    });
+
+                    observer.unobserve(img);
+                }
+            });
+        }, {
+            rootMargin: '50px 0px',
+            threshold: 0.01
+        });
+
+        lazyImages.forEach(img => imageObserver.observe(img));
+    }
+});
 </script>
+
+<style>
+/* 批量结果优化样式 */
+.result-item {
+    transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+
+.result-item:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 15px 30px rgba(33, 150, 243, 0.2) !important;
+}
+
+.result-item-wrapper {
+    opacity: 0;
+    animation: fadeInUp 0.5s ease forwards;
+}
+
+@keyframes fadeInUp {
+    from {
+        opacity: 0;
+        transform: translateY(20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* 图片加载骨架屏 */
+.skeleton-loader {
+    width: 100%;
+    height: 200px;
+    background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+    background-size: 200% 100%;
+    animation: skeleton-loading 1.5s infinite;
+    border-radius: 8px;
+}
+
+@keyframes skeleton-loading {
+    0% { background-position: 200% 0; }
+    100% { background-position: -200% 0; }
+}
+
+/* 懒加载图片状态 */
+.lazy-result-image {
+    opacity: 0;
+    transition: opacity 0.3s ease;
+}
+
+.lazy-result-image.loaded {
+    opacity: 1;
+}
+
+/* 深色模式下的骨架屏 */
+body.dark-mode .skeleton-loader {
+    background: linear-gradient(90deg, #2a2a4a 25%, #3a3a5a 50%, #2a2a4a 75%);
+    background-size: 200% 100%;
+}
+
+/* 媒体容器 */
+.result-media-wrapper {
+    position: relative;
+    overflow: hidden;
+    border-radius: 8px;
+    background: rgba(0, 0, 0, 0.02);
+}
+
+.result-media-wrapper img:hover {
+    transform: scale(1.05);
+}
+
+/* 文件名截断优化 */
+.filename-text {
+    display: inline-block;
+    max-width: 200px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    vertical-align: middle;
+}
+
+/* 响应式网格优化 */
+@media (min-width: 1400px) {
+    .results-grid .col-lg-3 {
+        flex: 0 0 20%;
+        max-width: 20%;
+    }
+}
+
+@media (min-width: 1200px) and (max-width: 1399px) {
+    .results-grid .col-lg-3 {
+        flex: 0 0 25%;
+        max-width: 25%;
+    }
+}
+
+@media (max-width: 576px) {
+    .result-item-wrapper {
+        flex: 0 0 100%;
+        max-width: 100%;
+    }
+
+    .filename-text {
+        max-width: 150px;
+    }
+}
+
+/* 过滤按钮样式 */
+.btn-group .btn {
+    transition: all 0.2s ease;
+}
+
+.btn-group .btn:hover {
+    transform: translateY(-2px);
+}
+
+.btn-group .btn.active {
+    box-shadow: 0 4px 8px rgba(33, 150, 243, 0.3);
+}
+</style>
 
 {% endblock %}

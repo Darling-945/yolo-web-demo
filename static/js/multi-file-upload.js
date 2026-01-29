@@ -19,11 +19,7 @@ function initializeMultiFileUpload() {
     // Modify the file input to handle multiple files
     fileInput.addEventListener('change', handleMultipleFileSelect);
 
-    // Update form submission to handle multiple files
-    const uploadForm = document.getElementById('uploadForm');
-    if (uploadForm) {
-        uploadForm.addEventListener('submit', handleMultipleFileSubmit);
-    }
+    // 不再添加 submit 事件监听器，由 index.html 处理
 }
 
 function handleMultipleFileSelect(event) {
@@ -33,7 +29,6 @@ function handleMultipleFileSelect(event) {
         return;
     }
 
-    console.log(`选择了 ${files.length} 个文件`);
     uploadedFiles = [];
     selectedFilesInfo = [];
 
@@ -105,10 +100,7 @@ function processSingleFile(file, index) {
     const hasValidExtension = imageExtensions.includes(fileExtension) || videoExtensions.includes(fileExtension);
     const hasValidMime = isVideoMime || isImageMime;
 
-    console.debug(`Processing file: ${fileName}, Extension: ${fileExtension}, MIME: ${mimeType}`);
-
     if (!hasValidExtension && !hasValidMime) {
-        console.error(`不支持的文件类型: Extension=${fileExtension}, MIME=${mimeType}`);
         showToast('error', `不支持的文件类型: ${fileName}`, 'error');
         return null;
     }
@@ -128,7 +120,6 @@ function processSingleFile(file, index) {
         fileType = 'image';
         isImage = true;
     } else {
-        console.error(`无法确定文件类型: ${fileName}`);
         showToast('error', `无法确定文件类型: ${fileName}`, 'error');
         return null;
     }
@@ -138,12 +129,9 @@ function processSingleFile(file, index) {
 
     if (file.size > maxSize) {
         const maxSizeMB = maxSize / (1024 * 1024);
-        console.error(`文件过大: ${formatFileSize(file.size)}, 最大允许: ${maxSizeMB}MB`);
         showToast('error', `文件过大: ${fileName} (${formatFileSize(file.size)} > ${maxSizeMB}MB)`, 'error');
         return null;
     }
-
-    console.debug(`File accepted: ${fileName}, Type: ${fileType}, Size: ${formatFileSize(file.size)}`);
 
     return {
         file: file,
@@ -225,23 +213,8 @@ function formatFileSize(bytes) {
     return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
 }
 
-function handleMultipleFileSubmit(event) {
-    event.preventDefault();
-
-    console.log('=== Starting file submission ===');
-    console.log('Selected files:', selectedFilesInfo.length);
-
-    if (selectedFilesInfo.length === 0) {
-        showToast('error', '请先选择要上传的文件', 'error');
-        return;
-    }
-
-    // Log all selected files before processing
-    console.log('Files to be uploaded:');
-    selectedFilesInfo.forEach((fileInfo, index) => {
-        console.log(`${index + 1}. Name: ${fileInfo.name}, Type: ${fileInfo.type}, Size: ${fileInfo.sizeFormatted}, Extension: ${fileInfo.extension}`);
-    });
-
+// 异步批量推理提交
+async function submitBatchAsyncInference() {
     const uploadBtn = document.getElementById('uploadBtn');
     const uploadBtnText = document.getElementById('uploadBtnText');
     const uploadSpinner = document.getElementById('uploadSpinner');
@@ -255,61 +228,60 @@ function handleMultipleFileSubmit(event) {
     if (uploadSpinner) uploadSpinner.style.display = 'inline-block';
     if (progressContainer) progressContainer.style.display = 'block';
 
-    showToast('info', `正在处理 ${selectedFilesInfo.length} 个文件...`, 'info');
+    showToast('info', `正在创建 ${selectedFilesInfo.length} 个异步推理任务...`, 'info');
 
-    // Get configuration parameters
-    const modelSelect = document.getElementById('modelSelect');
-    const confidenceInput = document.getElementById('confidenceInput');
-    const iouInput = document.getElementById('iouInput');
+    try {
+        // 获取配置参数
+        const modelSelect = document.getElementById('modelSelect');
+        const confidenceInput = document.getElementById('confidenceInput');
+        const iouInput = document.getElementById('iouInput');
 
-    const formData = new FormData();
+        const model = modelSelect ? modelSelect.value : 'yolo11n.pt';
+        const confidence = confidenceInput ? confidenceInput.value : '0.25';
+        const iou = iouInput ? iouInput.value : '0.45';
 
-    // Add all files to FormData with the correct key name
-    selectedFilesInfo.forEach((fileInfo, index) => {
-        formData.append(`files`, fileInfo.file);
-    });
+        // 为每个文件创建异步任务
+        const taskIds = [];
 
-    // Add configuration parameters
-    formData.append('model', modelSelect ? modelSelect.value : 'yolo11n.pt');
-    formData.append('confidence', confidenceInput ? confidenceInput.value : '0.25');
-    formData.append('iou', iouInput ? iouInput.value : '0.45');
+        for (const fileInfo of selectedFilesInfo) {
+            const formData = new FormData();
+            formData.append('file', fileInfo.file);
+            formData.append('model', model);
+            formData.append('confidence', confidence);
+            formData.append('iou', iou);
 
-    // Send request to the existing /infer endpoint
-    fetch('/infer', {
-        method: 'POST',
-        body: formData
-    })
-    .then(response => {
-        console.log('=== RESPONSE ANALYSIS ===');
-        console.log('Response status:', response.status);
-        console.log('Response headers:', [...response.headers.entries()]);
-        console.log('Response ok:', response.ok);
-        console.log('Response URL:', response.url);
+            try {
+                const response = await fetch('/infer/async', {
+                    method: 'POST',
+                    body: formData
+                });
 
-        if (!response.ok) {
-            return response.text().then(text => {
-                console.error('Error response body:', text);
-                throw new Error(`HTTP error! status: ${response.status}, body: ${text}`);
-            });
+                const result = await response.json();
+                if (result.success) {
+                    taskIds.push(result.task_id);
+                } else {
+                    showToast('error', `${fileInfo.name} 任务创建失败: ${result.error}`, 'error');
+                }
+            } catch (error) {
+                console.error(`Error creating task for ${fileInfo.name}:`, error);
+                showToast('error', `${fileInfo.name} 任务创建失败`, 'error');
+            }
         }
-        return response.text();
-    })
-    .then(html => {
-        updateProgress(100, '处理完成！');
-        showToast('success', '批量推理完成！', 'success');
 
-        // Let the server handle the response and redirect
-        document.body.innerHTML = html;
-    })
-    .catch(error => {
-        console.error('=== ERROR DETAILS ===');
-        console.error('Full error object:', error);
-        console.error('Error message:', error.message);
-        console.error('Error stack:', error.stack);
-        console.error('=== END ERROR DETAILS ===');
-        showToast('error', '处理失败: ' + error.message, 'error');
+        if (taskIds.length > 0) {
+            showToast('success', `成功创建 ${taskIds.length} 个推理任务，正在跳转...`, 'success');
+            // 跳转到第一个任务的等待页面
+            window.location.href = `/infer/waiting/${taskIds[0]}`;
+        } else {
+            showToast('error', '所有任务创建失败，请重试', 'error');
+            resetUploadState();
+        }
+
+    } catch (error) {
+        console.error('Batch async inference error:', error);
+        showToast('error', '提交失败，请重试', 'error');
         resetUploadState();
-    });
+    }
 }
 
 function updateProgress(percentage, message) {

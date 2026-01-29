@@ -1,0 +1,407 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="main-container fade-in">
+    <!-- 标题区域 -->
+    <header class="text-center mb-5 mb-lg-6">
+        <i class="fas fa-cog fa-spin fa-4x fa-lg-5x mb-4" style="color: var(--primary-color);"></i1>
+        <h1 class="display-4 fw-bold mb-3">正在处理</h1>
+        <p class="lead text-muted fs-5 mb-0">
+            {% if file_type == 'video' %}
+                视频推理可能需要较长时间，请耐心等待...
+            {% else %}
+                正在进行目标检测...
+            {% endif %}
+        </p>
+    </header>
+
+    <!-- 进度展示区域 -->
+    <section class="progress-section mb-5 mb-lg-6">
+        <div class="progress-card card mx-auto" style="max-width: 700px;">
+            <div class="card-body p-5">
+                <!-- 文件信息 -->
+                <div class="file-info text-center mb-4">
+                    <h5 class="fw-semibold mb-2">
+                        <i class="fas {% if file_type == 'video' %}fa-video{% else %}fa-image{% endif %} me-2" style="color: var(--primary-color);"></i>
+                        {% if task.file_info %}
+                            {{ task.file_info.filename }}
+                        {% else %}
+                            上传的文件
+                        {% endif %}
+                    </h5>
+                    <span class="badge bg-{{ 'success' if task.status == 'completed' else 'info' }} fs-6">
+                        {% if file_type == 'video' %}视频推理{% else %}图片检测{% endif %}
+                    </span>
+                </div>
+
+                <!-- 进度条 -->
+                <div class="progress-wrapper mb-4">
+                    <div class="d-flex justify-content-between mb-2">
+                        <span class="text-muted">处理进度</span>
+                        <span class="fw-bold" id="progressPercent">0%</span>
+                    </div>
+                    <div class="modern-progress" style="height: 12px;">
+                        <div class="modern-progress-bar" id="progressBar" style="width: 0%;"></div>
+                    </div>
+                    <p class="text-muted text-center mt-2" id="progressMessage">
+                        准备中...
+                    </p>
+                </div>
+
+                <!-- 状态图标 -->
+                <div class="status-icon text-center my-5" id="statusIcon">
+                    <i class="fas fa-circle-notch fa-spin fa-3x text-primary"></i>
+                </div>
+
+                <!-- 状态说明 -->
+                <div class="status-info text-center">
+                    <div class="row g-3">
+                        <div class="col-4">
+                            <div class="info-box p-3 rounded-3 bg-light">
+                                <i class="fas fa-clock fa-2x mb-2 text-primary"></i>
+                                <small class="text-muted d-block">任务ID</small>
+                                <code class="small" id="taskIdDisplay">{{ task_id[:8] }}...</code>
+                            </div>
+                        </div>
+                        <div class="col-4">
+                            <div class="info-box p-3 rounded-3 bg-light">
+                                <i class="fas fa-tasks fa-2x mb-2 text-success"></i>
+                                <small class="text-muted d-block">状态</small>
+                                <div class="fw-bold" id="statusDisplay">处理中</div>
+                            </div>
+                        </div>
+                        <div class="col-4">
+                            <div class="info-box p-3 rounded-3 bg-light">
+                                <i class="fas fa-hourglass-half fa-2x mb-2 text-warning"></i>
+                                <small class="text-muted d-block">已用时间</small>
+                                <div class="fw-bold" id="elapsedTime">0s</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 提示信息 -->
+                <div class="alert alert-info text-center mt-4 mb-0">
+                    <i class="fas fa-info-circle me-2"></i>
+                    {% if file_type == 'video' %}
+                        视频推理正在后台进行，您可以保持此页面或稍后回来查看结果。<br>
+                        <small>处理完成后会自动跳转到结果页面，请不要关闭浏览器。</small>
+                    {% else %}
+                        图片检测正在后台进行，请稍候...
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- 处理步骤说明 -->
+    <section class="steps-section mb-5 mb-lg-6">
+        <div class="steps-card card mx-auto" style="max-width: 800px;">
+            <div class="card-body p-4">
+                <h6 class="fw-bold mb-3 text-center">
+                    <i class="fas fa-list-ol me-2"></i>处理步骤
+                </h6>
+                <div class="row g-3">
+                    <div class="col-6 col-md-3">
+                        <div class="step-item text-center p-3 rounded-3" id="step1">
+                            <div class="step-icon bg-primary text-white rounded-circle d-inline-flex align-items-center justify-content-center mb-2" style="width: 40px; height: 40px;">
+                                <i class="fas fa-upload"></i>
+                            </div>
+                            <small class="text-muted">上传文件</small>
+                        </div>
+                    </div>
+                    <div class="col-6 col-md-3">
+                        <div class="step-item text-center p-3 rounded-3" id="step2">
+                            <div class="step-icon bg-secondary text-white rounded-circle d-inline-flex align-items-center justify-content-center mb-2" style="width: 40px; height: 40px;">
+                                <i class="fas fa-robot"></i>
+                            </div>
+                            <small class="text-muted">加载模型</small>
+                        </div>
+                    </div>
+                    <div class="col-6 col-md-3">
+                        <div class="step-item text-center p-3 rounded-3" id="step3">
+                            <div class="step-icon bg-secondary text-white rounded-circle d-inline-flex align-items-center justify-content-center mb-2" style="width: 40px; height: 40px;">
+                                <i class="fas fa-search"></i>
+                            </div>
+                            <small class="text-muted">目标检测</small>
+                        </div>
+                    </div>
+                    <div class="col-6 col-md-3">
+                        <div class="step-item text-center p-3 rounded-3" id="step4">
+                            <div class="step-icon bg-secondary text-white rounded-circle d-inline-flex align-items-center justify-content-center mb-2" style="width: 40px; height: 40px;">
+                                <i class="fas fa-check"></i>
+                            </div>
+                            <small class="text-muted">处理完成</small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- 取消按钮 -->
+    <section class="action-section text-center" id="cancelSection">
+        <a href="/" class="btn btn-outline-secondary btn-lg px-5">
+            <i class="fas fa-times me-2"></i>取消并返回首页
+        </a>
+    </section>
+</div>
+
+<script>
+// 任务进度跟踪
+const taskId = '{{ task_id }}';
+const taskType = '{{ file_type }}';
+let pollInterval = null;
+let startTime = Date.now();
+let elapsedInterval = null;
+
+// 更新已用时间
+function updateElapsedTime() {
+    const elapsed = Math.floor((Date.now() - startTime) / 1000);
+    const minutes = Math.floor(elapsed / 60);
+    const seconds = elapsed % 60;
+
+    if (minutes > 0) {
+        document.getElementById('elapsedTime').textContent = `${minutes}分${seconds}秒`;
+    } else {
+        document.getElementById('elapsedTime').textContent = `${seconds}秒`;
+    }
+}
+
+// 查询任务状态
+async function checkTaskStatus() {
+    try {
+        const response = await fetch(`/api/task/${taskId}`);
+        const data = await response.json();
+
+        if (!data.success) {
+            showError('无法获取任务状态');
+            stopPolling();
+            return;
+        }
+
+        const task = data.task;
+
+        // 更新进度条
+        document.getElementById('progressBar').style.width = task.progress + '%';
+        document.getElementById('progressPercent').textContent = task.progress + '%';
+        document.getElementById('progressMessage').textContent = task.message;
+
+        // 更新步骤状态
+        updateSteps(task.progress);
+
+        // 检查任务状态
+        if (task.status === 'completed') {
+            onTaskCompleted();
+        } else if (task.status === 'failed') {
+            onTaskFailed(task.message);
+        } else if (task.status === 'cancelled') {
+            onTaskCancelled();
+        }
+        // 继续轮询
+    } catch (error) {
+        console.error('Error checking task status:', error);
+        // 继续轮询，不因单次错误而停止
+    }
+}
+
+// 更新步骤状态
+function updateSteps(progress) {
+    const steps = ['step1', 'step2', 'step3', 'step4'];
+    const completedColor = 'bg-success';
+
+    if (progress >= 100) {
+        steps.forEach(stepId => {
+            const step = document.getElementById(stepId);
+            const icon = step.querySelector('.step-icon');
+            icon.className = `step-icon ${completedColor} text-white rounded-circle d-inline-flex align-items-center justify-content-center mb-2`;
+            icon.style.width = '40px';
+            icon.style.height = '40px';
+        });
+    } else if (progress >= 90) {
+        activateStep('step3', completedColor);
+        activateStep('step4', 'bg-secondary');
+    } else if (progress >= 50) {
+        activateStep('step3', 'bg-primary');
+    } else if (progress >= 10) {
+        activateStep('step2', 'bg-primary');
+    } else if (progress >= 5) {
+        activateStep('step2', 'bg-secondary');
+    }
+}
+
+function activateStep(stepId, colorClass) {
+    const step = document.getElementById(stepId);
+    const icon = step.querySelector('.step-icon');
+    icon.className = `step-icon ${colorClass} text-white rounded-circle d-inline-flex align-items-center justify-content-center mb-2`;
+    icon.style.width = '40px';
+    icon.style.height = '40px';
+}
+
+// 任务完成
+function onTaskCompleted() {
+    stopPolling();
+    updateElapsedTime();
+
+    // 显示完成状态
+    document.getElementById('statusIcon').innerHTML = `
+        <i class="fas fa-check-circle fa-3x text-success mb-3"></i>
+        <h5 class="text-success">处理完成！</h5>
+        <p class="text-muted">正在跳转到结果页面...</p>
+    `;
+
+    document.getElementById('progressBar').style.width = '100%';
+    document.getElementById('progressBar').classList.add('bg-success');
+    document.getElementById('statusDisplay').textContent = '已完成';
+
+    showToast('success', '处理完成！正在跳转...', 'success');
+
+    // 延迟跳转到结果页面
+    setTimeout(() => {
+        window.location.href = `/infer/result/${taskId}`;
+    }, 1500);
+}
+
+// 任务失败
+function onTaskFailed(errorMessage) {
+    stopPolling();
+
+    document.getElementById('statusIcon').innerHTML = `
+        <i class="fas fa-exclamation-triangle fa-3x text-danger mb-3"></i>
+        <h5 class="text-danger">处理失败</h5>
+    `;
+
+    document.getElementById('progressBar').classList.add('bg-danger');
+    document.getElementById('statusDisplay').textContent = '失败';
+
+    showToast('error', errorMessage || '处理失败，请重试', 'error');
+
+    // 显示返回按钮
+    setTimeout(() => {
+        window.location.href = '/';
+    }, 3000);
+}
+
+// 任务取消
+function onTaskCancelled() {
+    stopPolling();
+
+    document.getElementById('statusIcon').innerHTML = `
+        <i class="fas fa-ban fa-3x text-warning mb-3"></i>
+        <h5 class="text-warning">任务已取消</h5>
+    `;
+
+    document.getElementById('statusDisplay').textContent = '已取消';
+
+    showToast('warning', '任务已被取消', 'warning');
+
+    setTimeout(() => {
+        window.location.href = '/';
+    }, 2000);
+}
+
+// 显示错误
+function showError(message) {
+    document.getElementById('progressMessage').textContent = message;
+    document.getElementById('progressMessage').classList.add('text-danger');
+}
+
+// 开始轮询
+function startPolling() {
+    // 立即检查一次
+    checkTaskStatus();
+
+    // 每1秒检查一次
+    pollInterval = setInterval(checkTaskStatus, 1000);
+
+    // 更新已用时间
+    elapsedInterval = setInterval(updateElapsedTime, 1000);
+}
+
+// 停止轮询
+function stopPolling() {
+    if (pollInterval) {
+        clearInterval(pollInterval);
+        pollInterval = null;
+    }
+    if (elapsedInterval) {
+        clearInterval(elapsedInterval);
+        elapsedInterval = null;
+    }
+}
+
+// 页面加载完成后开始轮询
+document.addEventListener('DOMContentLoaded', function() {
+    startPolling();
+    showToast('info', '任务正在后台处理中...', 'info');
+});
+
+// 页面离开前清理
+window.addEventListener('beforeunload', function() {
+    stopPolling();
+});
+</script>
+
+<style>
+.step-item {
+    transition: all 0.3s ease;
+    opacity: 0.5;
+}
+
+.step-item.active {
+    opacity: 1;
+}
+
+.step-item.completed .step-icon {
+    background: var(--success-color) !important;
+}
+
+/* 深色模式适配 */
+body.dark-mode .info-box {
+    background: rgba(26, 26, 46, 0.8) !important;
+    border: 1px solid var(--dark-border-color);
+}
+
+body.dark-mode .step-item {
+    color: var(--dark-text-primary);
+}
+
+body.dark-mode .step-item small {
+    color: var(--dark-text-secondary) !important;
+}
+
+/* 进度卡片动画 */
+.progress-card {
+    animation: fadeInUp 0.5s ease;
+}
+
+@keyframes fadeInUp {
+    from {
+        opacity: 0;
+        transform: translateY(20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* 响应式优化 */
+@media (max-width: 576px) {
+    .progress-card .card-body {
+        padding: 1.5rem !important;
+    }
+
+    .step-icon {
+        width: 32px !important;
+        height: 32px !important;
+        font-size: 0.9rem;
+    }
+
+    .info-box {
+        padding: 0.75rem !important;
+    }
+}
+</style>
+
+{% endblock %}
