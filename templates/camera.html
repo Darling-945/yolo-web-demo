@@ -1,0 +1,232 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="main-container fade-in">
+  <!-- 标题区域 -->
+  <header class="text-center mb-5">
+    <i class="fas fa-video fa-4x mb-4 float-animation" style="color: var(--primary-color);"></i>
+    <h1 class="display-4 fw-bold mb-3">摄像头实时检测</h1>
+    <p class="text-muted">使用摄像头进行实时目标检测</p>
+  </header>
+
+  <!-- 摄像头视频区域 -->
+  <section class="camera-section mb-5">
+    <div class="row justify-content-center">
+      <div class="col-lg-10">
+        <div class="card">
+          <div class="card-body p-4">
+            <!-- 视频容器 -->
+            <div class="video-container mb-4" style="position: relative; background: #000; border-radius: 12px; overflow: hidden;">
+              <video id="cameraVideo" autoplay playsinline style="width: 100%; height: auto; display: block;"></video>
+              <canvas id="detectionCanvas" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none;"></canvas>
+
+              <!-- 摄像头未启动提示 -->
+              <div id="cameraPlaceholder" class="camera-placeholder" style="position: absolute; top: 0; left: 0; right: 0; bottom: 0; display: flex; align-items: center; justify-content: center; background: linear-gradient(135deg, #1a1a2e 0%, #2a2a4a 100%); color: #fff;">
+                <div class="text-center">
+                  <i class="fas fa-camera fa-4x mb-3" style="color: var(--primary-color);"></i>
+                  <p class="mb-0">点击"开启摄像头"开始实时检测</p>
+                </div>
+              </div>
+            </div>
+
+            <!-- 统计信息 -->
+            <div class="row text-center mb-4">
+              <div class="col-md-4">
+                <div class="stat-card">
+                  <div class="stat-value" id="detectionCount">0</div>
+                  <div class="stat-label">检测对象</div>
+                </div>
+              </div>
+              <div class="col-md-4">
+                <div class="stat-card">
+                  <div class="stat-value" id="fpsCount">0</div>
+                  <div class="stat-label">FPS</div>
+                </div>
+              </div>
+              <div class="col-md-4">
+                <div class="stat-card">
+                  <div class="stat-value" id="inferenceTime">0</div>
+                  <div class="stat-label">推理时间(ms)</div>
+                </div>
+              </div>
+            </div>
+
+            <!-- 控制按钮 -->
+            <div class="d-flex justify-content-center gap-3 mb-4">
+              <button type="button" class="btn btn-primary btn-lg" id="startCameraBtn" style="min-width: 180px;">
+                <i class="fas fa-play me-2"></i>开启摄像头
+              </button>
+              <button type="button" class="btn btn-danger btn-lg" id="stopCameraBtn" style="min-width: 180px; display: none;">
+                <i class="fas fa-stop me-2"></i>停止检测
+              </button>
+              <button type="button" class="btn btn-success btn-lg" id="captureBtn" style="min-width: 180px; display: none;" disabled>
+                <i class="fas fa-camera me-2"></i>拍照截图
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 配置区域 -->
+  <section class="config-section mb-5">
+    <div class="row justify-content-center">
+      <div class="col-lg-10">
+        <div class="card">
+          <div class="card-body p-4">
+            <h5 class="card-title text-center mb-4 fw-semibold">
+              <i class="fas fa-cog me-2"></i>检测配置
+            </h5>
+            <div class="row g-4 justify-content-center align-items-start">
+              <!-- 模型选择 -->
+              <div class="col-12">
+                <div class="text-center">
+                  <label for="cameraModelSelect" class="form-label fw-semibold d-block mb-3">
+                    <i class="fas fa-robot me-2"></i>选择模型
+                  </label>
+                  <select class="form-select mx-auto" id="cameraModelSelect" style="max-width: 450px;">
+                    <optgroup label="YOLOv11 系列 (PyTorch)">
+                      <option value="yolo11n.pt" selected>YOLOv11 Nano (最快)</option>
+                      <option value="yolo11s.pt">YOLOv11 Small</option>
+                      <option value="yolo11m.pt">YOLOv11 Medium</option>
+                      <option value="yolo11l.pt">YOLOv11 Large</option>
+                      <option value="yolo11x.pt">YOLOv11 Extra Large (最准确)</option>
+                    </optgroup>
+                    <optgroup label="YOLOv8 系列 (PyTorch)">
+                      <option value="yolov8n.pt">YOLOv8 Nano</option>
+                      <option value="yolov8s.pt">YOLOv8 Small</option>
+                      <option value="yolov8m.pt">YOLOv8 Medium</option>
+                      <option value="yolov8l.pt">YOLOv8 Large</option>
+                      <option value="yolov8x.pt">YOLOv8 Extra Large</option>
+                    </optgroup>
+                    <optgroup label="YOLOv5 系列 (PyTorch)">
+                      <option value="yolov5n.pt">YOLOv5 Nano</option>
+                      <option value="yolov5s.pt">YOLOv5 Small</option>
+                      <option value="yolov5m.pt">YOLOv5 Medium</option>
+                      <option value="yolov5l.pt">YOLOv5 Large</option>
+                      <option value="yolov5x.pt">YOLOv5 Extra Large</option>
+                    </optgroup>
+                  </select>
+                </div>
+              </div>
+
+              <!-- 参数调节 -->
+              <div class="col-12 col-lg-6">
+                <div class="text-center">
+                  <label for="cameraConfidenceSlider" class="form-label fw-semibold d-block mb-3">
+                    <i class="fas fa-bullseye me-2"></i>置信度阈值
+                  </label>
+                  <div class="d-flex flex-column align-items-center gap-3">
+                    <input type="range" class="form-range" style="max-width: 250px;" id="cameraConfidenceSlider" min="0.1" max="0.9" step="0.05" value="0.25">
+                    <div class="d-flex align-items-center gap-3">
+                      <input type="number" class="form-control text-center" id="cameraConfidenceInput" min="0.1" max="0.9" step="0.05" value="0.25" style="width: 100px;">
+                      <span class="badge bg-primary px-3 py-2 fs-6" id="cameraConfidenceValue">0.25</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div class="col-12 col-lg-6">
+                <div class="text-center">
+                  <label for="cameraIouSlider" class="form-label fw-semibold d-block mb-3">
+                    <i class="fas fa-vector-square me-2"></i>IOU阈值
+                  </label>
+                  <div class="d-flex flex-column align-items-center gap-3">
+                    <input type="range" class="form-range" style="max-width: 250px;" id="cameraIouSlider" min="0.1" max="0.9" step="0.05" value="0.45">
+                    <div class="d-flex align-items-center gap-3">
+                      <input type="number" class="form-control text-center" id="cameraIouInput" min="0.1" max="0.9" step="0.05" value="0.45" style="width: 100px;">
+                      <span class="badge bg-success px-3 py-2 fs-6" id="cameraIouValue">0.45</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 检测结果列表 -->
+  <section class="results-section" id="resultsSection" style="display: none;">
+    <div class="row justify-content-center">
+      <div class="col-lg-10">
+        <div class="card">
+          <div class="card-body p-4">
+            <h5 class="card-title mb-4">
+              <i class="fas fa-list me-2"></i>检测对象详情
+            </h5>
+            <div class="table-responsive">
+              <table class="table table-hover">
+                <thead>
+                  <tr>
+                    <th>类别</th>
+                    <th>置信度</th>
+                    <th>位置</th>
+                  </tr>
+                </thead>
+                <tbody id="detectionTableBody">
+                  <!-- 检测结果将动态添加到这里 -->
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+</div>
+
+<style>
+.stat-card {
+  padding: 1.5rem;
+  background: rgba(33, 150, 243, 0.05);
+  border-radius: 12px;
+  border: 1px solid rgba(33, 150, 243, 0.1);
+  transition: all 0.3s ease;
+}
+
+.stat-card:hover {
+  background: rgba(33, 150, 243, 0.1);
+  transform: translateY(-3px);
+  box-shadow: 0 8px 20px rgba(33, 150, 243, 0.15);
+}
+
+.stat-value {
+  font-size: 2.5rem;
+  font-weight: 700;
+  background: var(--bg-gradient);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  margin-bottom: 0.5rem;
+}
+
+.stat-label {
+  font-size: 0.9rem;
+  color: var(--secondary-color);
+  font-weight: 500;
+}
+
+.camera-placeholder {
+  animation: fadeIn 0.5s ease;
+}
+
+@media (max-width: 768px) {
+  .stat-value {
+    font-size: 2rem;
+  }
+
+  .d-flex.gap-3 {
+    flex-direction: column;
+  }
+
+  .d-flex.gap-3 .btn {
+    width: 100%;
+  }
+}
+</style>
+
+<script src="{{ url_for('static', filename='js/camera.js') }}"></script>
+{% endblock %}

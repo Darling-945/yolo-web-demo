@@ -243,6 +243,103 @@ def about():
     return render_template('about.html')
 
 
+@app.route('/camera')
+def camera():
+    """摄像头检测页面"""
+    return render_template('camera.html')
+
+
+@app.route('/api/camera_detect', methods=['POST'])
+@limiter.limit('30/minute')
+def camera_detect():
+    """接收摄像头帧进行推理的API接口"""
+    try:
+        # 检查是否有图像数据
+        if 'image' not in request.files:
+            return {'success': False, 'error': '没有图像数据'}, 400
+
+        file = request.files['image']
+        if file.filename == '':
+            return {'success': False, 'error': '没有选择文件'}, 400
+
+        # 保存临时文件
+        import tempfile
+        with tempfile.NamedTemporaryFile(delete=False, suffix='.jpg') as tmp_file:
+            file.save(tmp_file.name)
+            temp_path = tmp_file.name
+
+        try:
+            # 获取推理参数
+            params = process_inference_parameters(request, config)
+
+            # 切换模型
+            if params['model_name'] != yolo_inference.model_path:
+                yolo_inference.change_model(params['model_name'])
+
+            # 设置阈值
+            original_conf = yolo_inference.conf_threshold
+            original_iou = yolo_inference.iou_threshold
+            yolo_inference.conf_threshold = params['conf_threshold']
+            yolo_inference.iou_threshold = params['iou_threshold']
+
+            # 进行推理（不保存图像）
+            import cv2
+            img = cv2.imread(temp_path)
+            if img is None:
+                return {'success': False, 'error': '无法读取图像'}, 400
+
+            # 执行检测
+            results = yolo_inference.model.predict(
+                img,
+                conf=yolo_inference.conf_threshold,
+                iou=yolo_inference.iou_threshold,
+                verbose=False
+            )
+
+            # 处理结果
+            detections = []
+            if results and len(results) > 0:
+                result = results[0]
+                if hasattr(result, 'boxes') and result.boxes is not None:
+                    boxes = result.boxes
+                    for i in range(len(boxes)):
+                        box = boxes.xyxy[i].cpu().numpy()
+                        conf = boxes.conf[i].cpu().numpy()
+                        cls = int(boxes.cls[i].cpu().numpy()) if hasattr(boxes, 'cls') else 0
+
+                        # 获取类别名称
+                        class_name = yolo_inference.model.names[cls] if hasattr(yolo_inference.model, 'names') else f'class_{cls}'
+
+                        detections.append({
+                            'class': class_name,
+                            'confidence': float(conf),
+                            'bbox': [float(x) for x in box],
+                            'class_id': cls
+                        })
+
+            # 恢复阈值
+            yolo_inference.conf_threshold = original_conf
+            yolo_inference.iou_threshold = original_iou
+
+            return jsonify({
+                'success': True,
+                'detections': detections,
+                'count': len(detections)
+            })
+
+        finally:
+            # 清理临时文件
+            try:
+                import os
+                os.unlink(temp_path)
+            except:
+                pass
+
+    except Exception as e:
+        logger.error(f"Camera detection error: {str(e)}")
+        return {'success': False, 'error': f'检测失败: {str(e)}'}, 500
+
+
 @app.route('/infer', methods=['POST'])
 @limiter.limit(config.RATELIMIT_API)
 def infer():
