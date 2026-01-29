@@ -4,7 +4,9 @@
 <div class="main-container fade-in">
     <!-- 标题区域 -->
     <header class="text-center mb-5 mb-lg-6">
-        <i class="fas fa-cog fa-spin fa-4x fa-lg-5x mb-4" style="color: var(--primary-color);"></i1>
+        <div class="loading-icon-wrapper mb-4">
+            <i class="fas fa-cog fa-spin fa-4x fa-lg-5x" style="color: var(--primary-color);"></i>
+        </div>
         <h1 class="display-4 fw-bold mb-3">正在处理</h1>
         <p class="lead text-muted fs-5 mb-0">
             {% if file_type == 'video' %}
@@ -181,6 +183,7 @@ async function checkTaskStatus() {
         }
 
         const task = data.task;
+        console.log('任务状态更新:', task.status, '进度:', task.progress);
 
         // 更新进度条
         document.getElementById('progressBar').style.width = task.progress + '%';
@@ -192,15 +195,18 @@ async function checkTaskStatus() {
 
         // 检查任务状态
         if (task.status === 'completed') {
+            console.log('任务已完成，准备跳转...');
             onTaskCompleted();
         } else if (task.status === 'failed') {
+            console.log('任务失败:', task.message);
             onTaskFailed(task.message);
         } else if (task.status === 'cancelled') {
+            console.log('任务已取消');
             onTaskCancelled();
         }
         // 继续轮询
     } catch (error) {
-        console.error('Error checking task status:', error);
+        console.error('查询任务状态出错:', error);
         // 继续轮询，不因单次错误而停止
     }
 }
@@ -240,8 +246,11 @@ function activateStep(stepId, colorClass) {
 
 // 任务完成
 function onTaskCompleted() {
+    // 立即停止轮询，避免重复触发
     stopPolling();
     updateElapsedTime();
+
+    console.log('onTaskCompleted 被调用，准备跳转到结果页面');
 
     // 显示完成状态
     document.getElementById('statusIcon').innerHTML = `
@@ -256,9 +265,14 @@ function onTaskCompleted() {
 
     showToast('success', '处理完成！正在跳转...', 'success');
 
-    // 延迟跳转到结果页面
+    // 先检查跳转URL是否正确
+    const resultUrl = `/infer/result/${taskId}`;
+    console.log('跳转URL:', resultUrl);
+
+    // 延迟跳转到结果页面，给用户足够时间看到完成状态
     setTimeout(() => {
-        window.location.href = `/infer/result/${taskId}`;
+        console.log('执行跳转...');
+        window.location.href = resultUrl;
     }, 1500);
 }
 
@@ -343,6 +357,40 @@ window.addEventListener('beforeunload', function() {
 </script>
 
 <style>
+/* 加载图标容器 - 确保旋转只应用于图标 */
+.loading-icon-wrapper {
+    display: inline-block;
+    margin: 1rem 0;
+}
+
+/* 确保 fa-spin 只影响图标本身，不影响父元素 */
+.loading-icon-wrapper i,
+.fa-spin {
+    display: inline-block;
+    animation: fa-spin 2s infinite linear;
+    transform-origin: center center;
+}
+
+/* 确保主容器不会旋转 */
+.main-container,
+header,
+.progress-section,
+.steps-section,
+.action-section {
+    animation: none !important;
+    transform: none !important;
+}
+
+/* 禁用 main-container 的 float-animation */
+.main-container.fade-in {
+    animation: fadeIn 0.8s ease-out !important;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(20px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
 .step-item {
     transition: all 0.3s ease;
     opacity: 0.5;

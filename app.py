@@ -1011,10 +1011,13 @@ def infer_result(task_id):
     if task['status'] == 'completed':
         result = task['result']
         if result['file_type'] == 'video':
+            # 构建 result 数据结构，确保与模板兼容
+            video_result = result.get('result', {})
+            video_result['output_video_path'] = result.get('output_path', '')
+
             return render_template('video_inference.html',
-                                 input_file=result['input_path'],
-                                 output_video=result['output_path'],
-                                 result=result['result'])
+                                 input_file=result.get('input_path', ''),
+                                 result=video_result)
         else:
             return render_template('inference.html',
                                  saveLocation=result['input_path'],
