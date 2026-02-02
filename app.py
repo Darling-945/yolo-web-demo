@@ -249,6 +249,12 @@ def camera():
     return render_template('camera.html')
 
 
+@app.route('/camera/debug')
+def camera_debug():
+    """摄像头诊断工具页面"""
+    return render_template('camera_debug.html')
+
+
 @app.route('/api/camera_detect', methods=['POST'])
 @limiter.limit('30/minute')
 def camera_detect():

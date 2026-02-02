@@ -25,7 +25,22 @@
                 <div class="text-center">
                   <i class="fas fa-camera fa-4x mb-3" style="color: var(--primary-color);"></i>
                   <p class="mb-0">点击"开启摄像头"开始实时检测</p>
+                  <p class="text-muted mt-2 small">
+                    <i class="fas fa-info-circle me-1"></i>
+                    需要浏览器摄像头权限
+                  </p>
+                  <a href="/camera/debug" class="btn btn-sm btn-outline-light mt-3">
+                    <i class="fas fa-stethoscope me-1"></i>摄像头诊断工具
+                  </a>
                 </div>
+              </div>
+
+              <!-- 网络状态指示器 -->
+              <div id="networkIndicator" class="network-indicator" style="position: absolute; top: 10px; right: 10px; display: none;">
+                <span class="badge bg-danger" id="networkStatusBadge">
+                  <i class="fas fa-wifi me-1"></i>
+                  <span id="networkStatusText">离线</span>
+                </span>
               </div>
             </div>
 
@@ -213,6 +228,68 @@
   animation: fadeIn 0.5s ease;
 }
 
+/* 网络状态指示器 */
+.network-indicator {
+  animation: slideIn 0.3s ease;
+}
+
+.network-indicator .badge {
+  padding: 8px 12px;
+  font-size: 0.85rem;
+  backdrop-filter: blur(10px);
+  background: rgba(0, 0, 0, 0.6) !important;
+}
+
+.network-indicator .badge.bg-success {
+  background: rgba(40, 167, 69, 0.8) !important;
+}
+
+.network-indicator .badge.bg-warning {
+  background: rgba(255, 193, 7, 0.8) !important;
+}
+
+.network-indicator .badge.bg-danger {
+  background: rgba(220, 53, 69, 0.8) !important;
+}
+
+/* 加载环动画 */
+.loading-ring {
+  display: inline-block;
+  width: 50px;
+  height: 50px;
+}
+
+.loading-ring::after {
+  content: " ";
+  display: block;
+  width: 40px;
+  height: 40px;
+  margin: 5px;
+  border-radius: 50%;
+  border: 4px solid var(--primary-color);
+  border-color: var(--primary-color) transparent var(--primary-color) transparent;
+  animation: ring-spin 1.2s linear infinite;
+}
+
+@keyframes ring-spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+/* 检测状态脉冲 */
+.detection-active {
+  animation: pulse-border 2s ease-in-out infinite;
+}
+
+@keyframes pulse-border {
+  0%, 100% {
+    box-shadow: 0 0 0 0 rgba(33, 150, 243, 0.4);
+  }
+  50% {
+    box-shadow: 0 0 0 10px rgba(33, 150, 243, 0);
+  }
+}
+
 @media (max-width: 768px) {
   .stat-value {
     font-size: 2rem;
@@ -224,6 +301,16 @@
 
   .d-flex.gap-3 .btn {
     width: 100%;
+  }
+
+  .network-indicator {
+    top: 5px;
+    right: 5px;
+  }
+
+  .network-indicator .badge {
+    font-size: 0.75rem;
+    padding: 6px 10px;
   }
 }
 </style>

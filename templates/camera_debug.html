@@ -1,0 +1,534 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>摄像头诊断工具 - YOLO Detection</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css" rel="stylesheet">
+    <style>
+        body {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 2rem 0;
+        }
+        .diagnostic-card {
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            padding: 2rem;
+            margin-bottom: 2rem;
+        }
+        .status-item {
+            padding: 1rem;
+            border-radius: 12px;
+            margin-bottom: 1rem;
+            background: #f8f9fa;
+        }
+        .status-item.success {
+            background: #d4edda;
+            border-left: 4px solid #28a745;
+        }
+        .status-item.error {
+            background: #f8d7da;
+            border-left: 4px solid #dc3545;
+        }
+        .status-item.warning {
+            background: #fff3cd;
+            border-left: 4px solid #ffc107;
+        }
+        .status-item.info {
+            background: #d1ecf1;
+            border-left: 4px solid #17a2b8;
+        }
+        .code-block {
+            background: #2d2d2d;
+            color: #f8f8f2;
+            padding: 1rem;
+            border-radius: 8px;
+            font-family: 'Courier New', monospace;
+            font-size: 0.9rem;
+            overflow-x: auto;
+            user-select: all;
+        }
+        .camera-preview {
+            width: 100%;
+            max-width: 640px;
+            border-radius: 12px;
+            background: #000;
+            aspect-ratio: 16/9;
+            margin: 0 auto;
+        }
+        .solution-card {
+            border: 2px dashed #dee2e6;
+            border-radius: 12px;
+            padding: 1.5rem;
+            margin-bottom: 1rem;
+            transition: all 0.3s ease;
+        }
+        .solution-card:hover {
+            border-color: #667eea;
+            background: rgba(102, 126, 234, 0.05);
+        }
+        .step-list {
+            counter-reset: step-counter;
+        }
+        .step-list li {
+            counter-increment: step-counter;
+            padding-left: 2rem;
+            position: relative;
+            margin-bottom: 1rem;
+        }
+        .step-list li::before {
+            content: counter(step-counter);
+            position: absolute;
+            left: 0;
+            top: 0;
+            width: 1.5rem;
+            height: 1.5rem;
+            background: #667eea;
+            color: white;
+            border-radius: 50%;
+            text-align: center;
+            line-height: 1.5rem;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="row justify-content-center">
+            <div class="col-lg-8">
+                <div class="text-center mb-5">
+                    <h1 class="text-white mb-3">
+                        <i class="bi bi-camera-video me-2"></i>摄像头诊断工具
+                    </h1>
+                    <p class="text-white-50">检测并解决摄像头访问问题</p>
+                </div>
+
+                <!-- 自动诊断结果 -->
+                <div class="diagnostic-card">
+                    <h4 class="mb-4">
+                        <i class="bi bi-activity me-2"></i>自动诊断结果
+                    </h4>
+                    <div id="diagnosticResults">
+                        <div class="text-center text-muted">
+                            <div class="spinner-border text-primary" role="status">
+                                <span class="visually-hidden">正在检测...</span>
+                            </div>
+                            <p class="mt-3">正在运行诊断...</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 摄像头测试 -->
+                <div class="diagnostic-card" id="cameraTestCard" style="display: none;">
+                    <h4 class="mb-4">
+                        <i class="bi bi-camera me-2"></i>摄像头测试
+                    </h4>
+                    <div class="text-center mb-3">
+                        <video id="testVideo" class="camera-preview" autoplay playsinline muted></video>
+                        <div id="cameraStatus" class="mt-3">
+                            <span class="badge bg-secondary">未测试</span>
+                        </div>
+                    </div>
+                    <div class="d-flex justify-content-center gap-3">
+                        <button class="btn btn-primary" onclick="startCameraTest()">
+                            <i class="bi bi-play-fill me-1"></i>测试摄像头
+                        </button>
+                        <button class="btn btn-danger" onclick="stopCameraTest()" style="display: none;" id="stopTestBtn">
+                            <i class="bi bi-stop-fill me-1"></i>停止测试
+                        </button>
+                    </div>
+                </div>
+
+                <!-- 可用摄像头列表 -->
+                <div class="diagnostic-card" id="cameraListCard" style="display: none;">
+                    <h4 class="mb-4">
+                        <i class="bi bi-list-ul me-2"></i>检测到的摄像头设备
+                    </h4>
+                    <div id="cameraList"></div>
+                </div>
+
+                <!-- 解决方案 -->
+                <div class="diagnostic-card" id="solutionCard" style="display: none;">
+                    <h4 class="mb-4">
+                        <i class="bi bi-lightbulb me-2"></i>推荐解决方案
+                    </h4>
+                    <div id="solutions"></div>
+                </div>
+
+                <!-- 详细信息 -->
+                <div class="diagnostic-card">
+                    <h4 class="mb-4">
+                        <i class="bi bi-info-circle me-2"></i>环境详细信息
+                    </h4>
+                    <div id="envDetails"></div>
+                    <button class="btn btn-outline-primary btn-sm mt-3" onclick="copyAllInfo()">
+                        <i class="bi bi-clipboard me-1"></i>复制所有信息
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let testStream = null;
+
+        // 页面加载时自动运行诊断
+        document.addEventListener('DOMContentLoaded', function() {
+            runDiagnostics();
+        });
+
+        async function runDiagnostics() {
+            const results = [];
+            const resultsDiv = document.getElementById('diagnosticResults');
+
+            // 1. 检测浏览器类型
+            const browser = detectBrowser();
+            results.push({
+                name: '浏览器类型',
+                value: browser.name,
+                version: browser.version,
+                status: ['Chrome', 'Edge', 'Firefox', 'Safari'].includes(browser.name) ? 'success' : 'warning',
+                message: browser.name === 'IE' ? 'IE浏览器不支持getUserMedia，请使用现代浏览器' : ''
+            });
+
+            // 2. 检测mediaDevices支持
+            const mediaDevicesSupported = !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia);
+            results.push({
+                name: 'mediaDevices API',
+                value: mediaDevicesSupported ? '支持' : '不支持',
+                status: mediaDevicesSupported ? 'success' : 'error',
+                message: mediaDevicesSupported ? '' : '您的浏览器不支持媒体设备API，请升级浏览器'
+            });
+
+            // 3. 检测安全上下文
+            const isSecureContext = window.isSecureContext;
+            const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+            const isIP = /^\d+\.\d+\.\d+\.\d+$/.test(window.location.hostname);
+            results.push({
+                name: '安全上下文',
+                value: isSecureContext ? '是' : '否',
+                status: isSecureContext ? 'success' : 'error',
+                message: !isSecureContext ? '摄像头访问需要HTTPS或localhost环境' : ''
+            });
+
+            // 4. 检测访问协议
+            const isHttps = window.location.protocol === 'https:';
+            results.push({
+                name: '访问协议',
+                value: window.location.protocol,
+                status: isHttps || isLocalhost ? 'success' : 'error',
+                message: !isHttps && !isLocalhost ? '必须使用HTTPS或localhost访问' : ''
+            });
+
+            // 5. 检测主机名
+            results.push({
+                name: '访问地址',
+                value: window.location.href,
+                status: isLocalhost ? 'success' : (isIP ? 'warning' : 'error'),
+                message: isIP ? '使用IP地址访问可能不被浏览器信任' : '请使用localhost访问或配置HTTPS'
+            });
+
+            // 渲染结果
+            let html = '';
+            results.forEach(result => {
+                const icon = {
+                    success: 'bi-check-circle-fill text-success',
+                    error: 'bi-x-circle-fill text-danger',
+                    warning: 'bi-exclamation-triangle-fill text-warning',
+                    info: 'bi-info-circle-fill text-info'
+                }[result.status];
+
+                html += `
+                    <div class="status-item ${result.status}">
+                        <div class="d-flex align-items-center">
+                            <i class="bi ${icon} fs-4 me-3"></i>
+                            <div class="flex-grow-1">
+                                <strong>${result.name}</strong>
+                                <div class="code-block my-2">${result.value}</div>
+                                ${result.message ? `<small class="text-danger">${result.message}</small>` : ''}
+                            </div>
+                        </div>
+                    </div>
+                `;
+            });
+
+            resultsDiv.innerHTML = html;
+
+            // 显示详细信息
+            showEnvDetails();
+
+            // 根据结果显示相应的解决方案
+            showSolutions(results);
+
+            // 如果mediaDevices支持，显示摄像头测试
+            if (mediaDevicesSupported) {
+                document.getElementById('cameraTestCard').style.display = 'block';
+            }
+        }
+
+        function detectBrowser() {
+            const ua = navigator.userAgent;
+            let name = 'Unknown';
+            let version = '';
+
+            if (ua.indexOf('Edg') > -1) {
+                name = 'Edge';
+                version = ua.match(/Edg\/([\d.]+)/)?.[1] || '';
+            } else if (ua.indexOf('Chrome') > -1) {
+                name = 'Chrome';
+                version = ua.match(/Chrome\/([\d.]+)/)?.[1] || '';
+            } else if (ua.indexOf('Firefox') > -1) {
+                name = 'Firefox';
+                version = ua.match(/Firefox\/([\d.]+)/)?.[1] || '';
+            } else if (ua.indexOf('Safari') > -1) {
+                name = 'Safari';
+                version = ua.match(/Version\/([\d.]+)/)?.[1] || '';
+            } else if (ua.indexOf('MSIE') > -1 || ua.indexOf('Trident/') > -1) {
+                name = 'IE';
+            }
+
+            return { name, version };
+        }
+
+        function showEnvDetails() {
+            const details = {
+                '浏览器': `${detectBrowser().name} ${detectBrowser().version}`,
+                'User Agent': navigator.userAgent,
+                '访问地址': window.location.href,
+                '协议': window.location.protocol,
+                '主机名': window.location.hostname,
+                '端口': window.location.port,
+                '安全上下文': window.isSecureContext ? '是' : '否',
+                'mediaDevices': navigator.mediaDevices ? '支持' : '不支持',
+                'getUserMedia': navigator.mediaDevices?.getUserMedia ? '支持' : '不支持'
+            };
+
+            let html = '<div class="row">';
+            for (const [key, value] of Object.entries(details)) {
+                html += `
+                    <div class="col-md-6 mb-3">
+                        <small class="text-muted">${key}</small>
+                        <div class="code-block">${value}</div>
+                    </div>
+                `;
+            }
+            html += '</div>';
+
+            document.getElementById('envDetails').innerHTML = html;
+        }
+
+        function showSolutions(results) {
+            const solutionCard = document.getElementById('solutionCard');
+            const solutionsDiv = document.getElementById('solutions');
+
+            const hasError = results.some(r => r.status === 'error');
+            const hasWarning = results.some(r => r.status === 'warning');
+
+            if (!hasError && !hasWarning) {
+                solutionsDiv.innerHTML = `
+                    <div class="alert alert-success">
+                        <i class="bi bi-check-circle me-2"></i>
+                        <strong>太好了！</strong>您的环境完全支持摄像头访问
+                    </div>
+                    <button class="btn btn-primary" onclick="window.location.href='/camera'">
+                        <i class="bi bi-arrow-right me-1"></i>前往摄像头检测页面
+                    </button>
+                `;
+                solutionCard.style.display = 'block';
+                return;
+            }
+
+            let solutions = [];
+
+            const secureContextResult = results.find(r => r.name === '安全上下文');
+            const hostnameResult = results.find(r => r.name === '访问地址');
+
+            if (secureContextResult && secureContextResult.status === 'error') {
+                const isIP = /^\d+\.\d+\.\d+\.\d+$/.test(window.location.hostname);
+
+                if (isIP) {
+                    solutions.push({
+                        title: '问题：使用IP地址访问',
+                        description: '浏览器不允许通过IP地址访问摄像头（除非是localhost或127.0.0.1）',
+                        steps: [
+                            '在浏览器中访问 http://localhost:5000',
+                            '确保服务器正在运行并监听localhost端口',
+                            '如果使用其他端口，请相应修改（如 http://localhost:8080）'
+                        ],
+                        link: 'http://localhost:5000',
+                        linkText: '跳转到 localhost'
+                    });
+                } else {
+                    solutions.push({
+                        title: '问题：非安全上下文',
+                        description: '摄像头访问需要HTTPS环境或localhost',
+                        steps: [
+                            '开发环境：使用 localhost 访问',
+                            '生产环境：配置HTTPS证书',
+                            '临时方案：在Chrome中添加安全源例外（仅开发用）'
+                        ]
+                    });
+                }
+            }
+
+            if (hostnameResult && hostnameResult.status === 'warning') {
+                solutions.push({
+                    title: '警告：内网IP访问',
+                    description: '使用内网IP访问可能不被浏览器完全信任',
+                    steps: [
+                        '推荐使用 localhost 访问',
+                        '或配置HTTPS证书'
+                    ]
+                });
+            }
+
+            const mediaDevicesResult = results.find(r => r.name === 'mediaDevices API');
+            if (mediaDevicesResult && mediaDevicesResult.status === 'error') {
+                solutions.push({
+                    title: '问题：浏览器不支持mediaDevices API',
+                    description: '您的浏览器版本过旧或不支持摄像头访问',
+                    steps: [
+                        '更新浏览器到最新版本',
+                        '推荐使用：Chrome 53+、Edge 79+、Firefox 36+、Safari 11+',
+                        '避免使用IE浏览器'
+                    ]
+                });
+            }
+
+            let html = '';
+            solutions.forEach(solution => {
+                html += `
+                    <div class="solution-card">
+                        <h5 class="mb-2">${solution.title}</h5>
+                        <p class="text-muted mb-3">${solution.description}</p>
+                        <ol class="step-list">
+                            ${solution.steps.map(step => `<li>${step}</li>`).join('')}
+                        </ol>
+                        ${solution.link ? `
+                            <a href="${solution.link}" class="btn btn-primary mt-3">
+                                <i class="bi bi-box-arrow-up-right me-1"></i>${solution.linkText}
+                            </a>
+                        ` : ''}
+                    </div>
+                `;
+            });
+
+            solutionsDiv.innerHTML = html;
+            solutionCard.style.display = 'block';
+        }
+
+        async function startCameraTest() {
+            const video = document.getElementById('testVideo');
+            const statusDiv = document.getElementById('cameraStatus');
+            const stopBtn = document.getElementById('stopTestBtn');
+
+            statusDiv.innerHTML = '<span class="badge bg-warning">正在请求权限...</span>';
+
+            try {
+                testStream = await navigator.mediaDevices.getUserMedia({
+                    video: {
+                        width: { ideal: 1280 },
+                        height: { ideal: 720 }
+                    }
+                });
+
+                video.srcObject = testStream;
+                statusDiv.innerHTML = '<span class="badge bg-success">摄像头正常工作</span>';
+                stopBtn.style.display = 'inline-block';
+
+                // 获取并显示摄像头列表
+                await enumerateCameras();
+
+            } catch (error) {
+                console.error('摄像头测试失败:', error);
+                statusDiv.innerHTML = `<span class="badge bg-danger">错误: ${error.name}</span>`;
+
+                let errorMsg = '';
+                switch (error.name) {
+                    case 'NotAllowedError':
+                    case 'PermissionDeniedError':
+                        errorMsg = '摄像头权限被拒绝。请在浏览器地址栏允许摄像头访问。';
+                        break;
+                    case 'NotFoundError':
+                        errorMsg = '未找到摄像头设备。请检查摄像头是否连接。';
+                        break;
+                    case 'NotReadableError':
+                        errorMsg = '摄像头无法访问，可能被其他应用占用。';
+                        break;
+                    default:
+                        errorMsg = error.message;
+                }
+
+                alert('摄像头测试失败：\n\n' + errorMsg);
+            }
+        }
+
+        function stopCameraTest() {
+            const video = document.getElementById('testVideo');
+            const statusDiv = document.getElementById('cameraStatus');
+            const stopBtn = document.getElementById('stopTestBtn');
+
+            if (testStream) {
+                testStream.getTracks().forEach(track => track.stop());
+                testStream = null;
+            }
+
+            video.srcObject = null;
+            statusDiv.innerHTML = '<span class="badge bg-secondary">已停止</span>';
+            stopBtn.style.display = 'none';
+        }
+
+        async function enumerateCameras() {
+            try {
+                const devices = await navigator.mediaDevices.enumerateDevices();
+                const cameras = devices.filter(d => d.kind === 'videoinput');
+
+                if (cameras.length > 0) {
+                    const listCard = document.getElementById('cameraListCard');
+                    const listDiv = document.getElementById('cameraList');
+
+                    let html = `<p class="text-muted">检测到 ${cameras.length} 个摄像头设备：</p>`;
+                    cameras.forEach((camera, index) => {
+                        html += `
+                            <div class="status-item info">
+                                <strong>摄像头 ${index + 1}</strong>
+                                <div class="code-block">${camera.label || '未命名设备（权限未授予）'}</div>
+                                <small class="text-muted">ID: ${camera.deviceId.substring(0, 30)}...</small>
+                            </div>
+                        `;
+                    });
+
+                    listDiv.innerHTML = html;
+                    listCard.style.display = 'block';
+                }
+            } catch (error) {
+                console.error('枚举设备失败:', error);
+            }
+        }
+
+        function copyAllInfo() {
+            const info = {
+                timestamp: new Date().toLocaleString('zh-CN'),
+                browser: detectBrowser(),
+                url: window.location.href,
+                secureContext: window.isSecureContext,
+                mediaDevices: !!navigator.mediaDevices,
+                getUserMedia: !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia)
+            };
+
+            const text = Object.entries(info)
+                .map(([k, v]) => `${k}: ${typeof v === 'object' ? `${v.name} ${v.version}` : v}`)
+                .join('\n');
+
+            navigator.clipboard.writeText(text).then(() => {
+                alert('诊断信息已复制到剪贴板！');
+            }).catch(() => {
+                prompt('请复制以下信息：', text);
+            });
+        }
+    </script>
+</body>
+</html>
