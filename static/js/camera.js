@@ -11,18 +11,37 @@ let stream = null;
 let isDetecting = false;
 let detectionInterval = null;
 let lastFrameTime = 0;
-const TARGET_FPS = 10; // 目标FPS，避免过载
-const FRAME_INTERVAL = 1000 / TARGET_FPS;
+
+// 帧率配置（保守设置，避免触发速率限制）
+const TARGET_FPS = 3;       // 目标FPS：每秒3次检测
+const MIN_FPS = 1;          // 最小FPS：每秒1次
+const MAX_FPS = 5;          // 最大FPS：每秒5次
+let currentTargetFps = TARGET_FPS;
+let FRAME_INTERVAL = 1000 / currentTargetFps;
 
 // 统计信息
 let frameCount = 0;
 let lastFpsUpdate = Date.now();
 let currentFps = 0;
 
-// 请求控制
+// 请求控制（严格限制，同一时间只允许一个请求）
 let pendingRequest = null;
-let requestQueue = [];
-const MAX_QUEUE_SIZE = 2; // 最大队列长度，避免堆积
+let isRequestInProgress = false;  // 是否有请求正在进行
+let lastRequestTime = 0;          // 上次请求时间
+const MIN_REQUEST_INTERVAL = 100; // 最小请求间隔(ms)
+
+// 图片压缩配置（YOLO模型标准输入分辨率）
+const MODEL_INPUT_SIZE = 640;     // YOLO标准输入尺寸640x640
+const JPEG_QUALITY = 0.4;         // JPEG压缩质量0.4（更低以减小传输大小）
+
+// 速率限制控制
+let rateLimitBackoff = false;
+let rateLimitBackoffUntil = 0;
+let consecutive429Errors = 0;
+let consecutiveSuccessCount = 0;  // 连续成功计数
+const MAX_429_ERRORS = 2;         // 降低阈值：2次429即触发退避
+const BACKOFF_MULTIPLIER = 2;
+const SUCCESS_TO_RECOVER = 5;     // 连续成功5次后恢复帧率
 
 // 性能监控
 let inferenceTimes = [];
@@ -51,8 +70,14 @@ function initializeCamera() {
     videoElement = document.getElementById('cameraVideo');
     canvasElement = document.getElementById('detectionCanvas');
 
+    console.log('初始化摄像头元素:', {
+        videoElement: videoElement ? 'found' : 'not found',
+        canvasElement: canvasElement ? 'found' : 'not found'
+    });
+
     if (videoElement && canvasElement) {
         ctx = canvasElement.getContext('2d');
+        console.log('Canvas context 创建:', ctx ? 'success' : 'failed');
 
         // 更新canvas显示尺寸以匹配视频
         function updateCanvasDisplaySize() {
@@ -60,11 +85,13 @@ function initializeCamera() {
                 const rect = videoElement.getBoundingClientRect();
                 canvasElement.style.width = rect.width + 'px';
                 canvasElement.style.height = rect.height + 'px';
+                console.log(`Canvas CSS尺寸更新: ${rect.width}x${rect.height}`);
             }
         }
 
         // 监听视频元数据加载完成
         videoElement.addEventListener('loadedmetadata', function() {
+            console.log(`视频元数据加载: videoWidth=${videoElement.videoWidth}, videoHeight=${videoElement.videoHeight}`);
             if (videoElement.videoWidth > 0 && videoElement.videoHeight > 0) {
                 canvasElement.width = videoElement.videoWidth;
                 canvasElement.height = videoElement.videoHeight;
@@ -74,6 +101,7 @@ function initializeCamera() {
 
         // 监听视频播放事件，更新canvas显示尺寸
         videoElement.addEventListener('playing', function() {
+            console.log(`视频开始播放: videoWidth=${videoElement.videoWidth}, videoHeight=${videoElement.videoHeight}`);
             if (videoElement.videoWidth > 0 && videoElement.videoHeight > 0) {
                 if (canvasElement.width !== videoElement.videoWidth ||
                     canvasElement.height !== videoElement.videoHeight) {
@@ -805,9 +833,6 @@ function stopCamera() {
         pendingRequest = null;
     }
 
-    // 清空请求队列
-    requestQueue = [];
-
     // 停止检测循环
     if (detectionInterval) {
         cancelAnimationFrame(detectionInterval);
@@ -862,6 +887,19 @@ function stopCamera() {
         reconnectTimeout = null;
     }
 
+    // 重置请求控制状态
+    isRequestInProgress = false;
+    lastRequestTime = 0;
+
+    // 重置速率限制状态
+    rateLimitBackoff = false;
+    rateLimitBackoffUntil = 0;
+    consecutive429Errors = 0;
+    consecutiveSuccessCount = 0;
+    currentTargetFps = TARGET_FPS;
+    FRAME_INTERVAL = 1000 / currentTargetFps;
+    hideRateLimitWarning();
+
     // 更新UI状态
     updateUIState('idle');
 
@@ -875,10 +913,50 @@ function startDetectionLoop() {
     if (!isDetecting) return;
 
     const now = Date.now();
-    const elapsed = now - lastFrameTime;
 
-    if (elapsed >= FRAME_INTERVAL) {
-        lastFrameTime = now - (elapsed % FRAME_INTERVAL);
+    // 检查是否在退避期
+    if (rateLimitBackoff && now < rateLimitBackoffUntil) {
+        const waitTime = Math.ceil((rateLimitBackoffUntil - now) / 1000);
+        console.log(`速率限制退避中，等待 ${waitTime} 秒...`);
+        detectionInterval = requestAnimationFrame(startDetectionLoop);
+        return;
+    }
+
+    // 如果退避期结束，恢复正常
+    if (rateLimitBackoff && now >= rateLimitBackoffUntil) {
+        rateLimitBackoff = false;
+        consecutive429Errors = 0;
+        console.log('速率限制退避结束，恢复正常检测');
+
+        // 逐步恢复帧率（先恢复到较低水平）
+        currentTargetFps = Math.min(TARGET_FPS, Math.max(MIN_FPS, currentTargetFps + 1));
+        FRAME_INTERVAL = 1000 / currentTargetFps;
+        console.log(`帧率恢复到 ${currentTargetFps} FPS`);
+
+        hideRateLimitWarning();
+    }
+
+    // 检查是否有请求正在进行（严格单请求模式）
+    if (isRequestInProgress) {
+        // 有请求在进行，跳过本次，继续等待
+        detectionInterval = requestAnimationFrame(startDetectionLoop);
+        return;
+    }
+
+    // 检查最小请求间隔
+    const timeSinceLastRequest = now - lastRequestTime;
+    if (timeSinceLastRequest < MIN_REQUEST_INTERVAL) {
+        // 距离上次请求太近，等待
+        detectionInterval = requestAnimationFrame(startDetectionLoop);
+        return;
+    }
+
+    const elapsed = now - lastFrameTime;
+    const currentInterval = 1000 / currentTargetFps;
+
+    if (elapsed >= currentInterval) {
+        lastFrameTime = now - (elapsed % currentInterval);
+        lastRequestTime = now;
 
         // 捕获帧并发送到后端
         captureAndDetect();
@@ -901,17 +979,17 @@ function startDetectionLoop() {
  * 捕获帧并发送到后端进行检测
  */
 async function captureAndDetect() {
-    if (!videoElement || !canvasElement || !ctx) return;
-
-    // 检查视频是否就绪
-    if (videoElement.videoWidth === 0 || videoElement.videoHeight === 0) {
-        console.log('视频尺寸尚未就绪，跳过此帧');
+    if (!videoElement || !canvasElement || !ctx) {
         return;
     }
 
-    // 检查队列大小，避免堆积
-    if (requestQueue.length >= MAX_QUEUE_SIZE) {
-        console.log('请求队列已满，跳过此帧');
+    // 检查视频是否就绪
+    if (videoElement.videoWidth === 0 || videoElement.videoHeight === 0) {
+        return;
+    }
+
+    // 严格单请求模式：如果已有请求在进行，直接返回
+    if (isRequestInProgress) {
         return;
     }
 
@@ -921,27 +999,52 @@ async function captureAndDetect() {
         pendingRequest = null;
     }
 
-    try {
-        // 设置canvas像素尺寸与视频原始尺寸一致
-        const targetWidth = videoElement.videoWidth;
-        const targetHeight = videoElement.videoHeight;
+    // 标记请求开始
+    isRequestInProgress = true;
 
-        if (canvasElement.width !== targetWidth || canvasElement.height !== targetHeight) {
-            canvasElement.width = targetWidth;
-            canvasElement.height = targetHeight;
+    try {
+        const videoWidth = videoElement.videoWidth;
+        const videoHeight = videoElement.videoHeight;
+
+        // 更新显示canvas尺寸（用于绘制检测框）
+        if (canvasElement.width !== videoWidth || canvasElement.height !== videoHeight) {
+            canvasElement.width = videoWidth;
+            canvasElement.height = videoHeight;
         }
 
-        // 更新canvas显示尺寸以匹配视频显示尺寸
+        // 更新canvas显示尺寸
         const videoRect = videoElement.getBoundingClientRect();
         canvasElement.style.width = videoRect.width + 'px';
         canvasElement.style.height = videoRect.height + 'px';
 
-        // 绘制当前帧到canvas
+        // 绘制当前帧到显示canvas
         ctx.drawImage(videoElement, 0, 0, canvasElement.width, canvasElement.height);
 
-        // 获取图像数据
-        canvasElement.toBlob(async function(blob) {
-            if (!blob) return;
+        // 保存原始帧数据（用于后续绘制检测框）
+        const frameImageData = ctx.getImageData(0, 0, canvasElement.width, canvasElement.height);
+        const savedWidth = canvasElement.width;
+        const savedHeight = canvasElement.height;
+
+        // 计算压缩后的尺寸（保持宽高比，最长边为MODEL_INPUT_SIZE）
+        const scale = Math.min(MODEL_INPUT_SIZE / videoWidth, MODEL_INPUT_SIZE / videoHeight);
+        const compressedWidth = Math.round(videoWidth * scale);
+        const compressedHeight = Math.round(videoHeight * scale);
+
+        // 创建压缩用的离屏canvas
+        const offscreenCanvas = document.createElement('canvas');
+        offscreenCanvas.width = compressedWidth;
+        offscreenCanvas.height = compressedHeight;
+        const offscreenCtx = offscreenCanvas.getContext('2d');
+
+        // 绘制压缩后的图像
+        offscreenCtx.drawImage(videoElement, 0, 0, compressedWidth, compressedHeight);
+
+        // 从压缩canvas获取blob
+        offscreenCanvas.toBlob(async function(blob) {
+            if (!blob) {
+                isRequestInProgress = false;
+                return;
+            }
 
             const startTime = performance.now();
 
@@ -949,25 +1052,30 @@ async function captureAndDetect() {
             const formData = new FormData();
             formData.append('image', blob, 'frame.jpg');
 
+            // 添加压缩信息，让后端知道原始比例
+            formData.append('scale', scale.toFixed(4));
+
             // 获取参数
             const modelSelect = document.getElementById('cameraModelSelect');
             const confidenceInput = document.getElementById('cameraConfidenceInput');
             const iouInput = document.getElementById('cameraIouInput');
 
-            formData.append('model', modelSelect ? modelSelect.value : 'yolo11n.pt');
-            formData.append('confidence', confidenceInput ? confidenceInput.value : '0.25');
-            formData.append('iou', iouInput ? iouInput.value : '0.45');
+            const modelName = modelSelect ? modelSelect.value : 'yolo11n.pt';
+            const confidenceValue = confidenceInput ? confidenceInput.value : '0.25';
+            const iouValue = iouInput ? iouInput.value : '0.45';
+
+            formData.append('model', modelName);
+            formData.append('confidence', confidenceValue);
+            formData.append('iou', iouValue);
+
+            console.log(`发送检测请求: model=${modelName}, conf=${confidenceValue}, iou=${iouValue}`);
 
             // 创建可取消的请求
             const controller = new AbortController();
             pendingRequest = controller;
-            const timeoutId = setTimeout(() => controller.abort(), 10000); // 10秒超时
+            const timeoutId = setTimeout(() => controller.abort(), 15000); // 增加超时到15秒
 
             try {
-                // 添加到队列
-                const requestId = Date.now();
-                requestQueue.push(requestId);
-
                 // 发送到后端
                 const response = await fetch('/api/camera_detect', {
                     method: 'POST',
@@ -977,15 +1085,31 @@ async function captureAndDetect() {
 
                 clearTimeout(timeoutId);
 
-                // 从队列移除
-                const queueIndex = requestQueue.indexOf(requestId);
-                if (queueIndex > -1) {
-                    requestQueue.splice(queueIndex, 1);
-                }
+                // 处理429速率限制错误
+                if (response.status === 429) {
+                    consecutive429Errors++;
+                    consecutiveSuccessCount = 0; // 重置成功计数
+                    console.warn(`收到429速率限制错误 (${consecutive429Errors}/${MAX_429_ERRORS})`);
 
-                // 检查是否是最新的请求
-                if (requestQueue.length > 0 || requestId < Math.max(...requestQueue, requestId)) {
-                    console.log('忽略过期响应');
+                    if (consecutive429Errors >= MAX_429_ERRORS) {
+                        // 触发退避机制
+                        rateLimitBackoff = true;
+                        const backoffSeconds = Math.pow(BACKOFF_MULTIPLIER, Math.min(consecutive429Errors - MAX_429_ERRORS + 1, 4)) * 10;
+                        rateLimitBackoffUntil = Date.now() + backoffSeconds * 1000;
+
+                        // 降低帧率
+                        const previousFps = currentTargetFps;
+                        currentTargetFps = MIN_FPS; // 直接降到最低
+                        FRAME_INTERVAL = 1000 / currentTargetFps;
+
+                        console.warn(`触发速率限制退避:`);
+                        console.warn(`  - 退避时间: ${backoffSeconds} 秒`);
+                        console.warn(`  - 帧率降低: ${previousFps} -> ${currentTargetFps} FPS`);
+                        console.warn(`  - 恢复时间: ${new Date(rateLimitBackoffUntil).toLocaleTimeString()}`);
+
+                        // 显示用户提示
+                        showRateLimitWarning(backoffSeconds);
+                    }
                     return;
                 }
 
@@ -994,13 +1118,22 @@ async function captureAndDetect() {
                 const endTime = performance.now();
                 const inferenceTime = Math.round(endTime - startTime);
 
+                console.log(`检测完成: success=${result.success}, count=${result.count}, time=${inferenceTime}ms`);
+
                 if (result.success) {
-                    // 清空canvas并重新绘制视频帧
-                    ctx.clearRect(0, 0, canvasElement.width, canvasElement.height);
-                    ctx.drawImage(videoElement, 0, 0, canvasElement.width, canvasElement.height);
+                    // 确保canvas尺寸正确
+                    if (canvasElement.width !== savedWidth || canvasElement.height !== savedHeight) {
+                        canvasElement.width = savedWidth;
+                        canvasElement.height = savedHeight;
+                    }
+
+                    // 恢复保存的帧图像
+                    ctx.putImageData(frameImageData, 0, 0);
 
                     // 绘制检测框
-                    drawDetections(result.detections);
+                    if (result.detections && result.detections.length > 0) {
+                        drawDetections(result.detections);
+                    }
 
                     // 更新统计信息
                     updateStatistics(result.count, currentFps, inferenceTime);
@@ -1010,8 +1143,27 @@ async function captureAndDetect() {
 
                     // 更新性能数据
                     updatePerformanceMetrics(inferenceTime);
+
+                    // 跟踪连续成功次数
+                    consecutiveSuccessCount++;
+
+                    // 重置速率限制计数器（成功请求）
+                    if (consecutive429Errors > 0) {
+                        console.log('检测成功，重置429错误计数');
+                        consecutive429Errors = 0;
+                    }
+
+                    // 连续成功多次后，逐步恢复帧率
+                    if (consecutiveSuccessCount >= SUCCESS_TO_RECOVER && currentTargetFps < TARGET_FPS) {
+                        const previousFps = currentTargetFps;
+                        currentTargetFps = Math.min(TARGET_FPS, currentTargetFps + 1);
+                        FRAME_INTERVAL = 1000 / currentTargetFps;
+                        consecutiveSuccessCount = 0; // 重置计数
+                        console.log(`帧率恢复: ${previousFps} -> ${currentTargetFps} FPS`);
+                    }
                 } else {
                     console.error('检测失败:', result.error);
+                    consecutiveSuccessCount = 0; // 失败时重置成功计数
                 }
 
             } catch (error) {
@@ -1022,11 +1174,13 @@ async function captureAndDetect() {
                 }
             } finally {
                 pendingRequest = null;
+                isRequestInProgress = false;
             }
-        }, 'image/jpeg', 0.8); // 0.8质量，平衡性能和质量
+        }, 'image/jpeg', JPEG_QUALITY);
 
     } catch (error) {
         console.error('捕获帧失败:', error);
+        isRequestInProgress = false;
     }
 }
 
@@ -1047,25 +1201,32 @@ function updatePerformanceMetrics(inferenceTime) {
 }
 
 /**
- * 自适应调整帧率
+ * 自适应调整帧率（保守策略）
  */
 function adjustFrameRate(avgInferenceTime) {
-    const targetInferenceTime = 100; // 目标推理时间100ms
-    const minFps = 5;
-    const maxFps = 15;
+    const targetInferenceTime = 200; // 目标推理时间200ms（更宽松）
 
-    let newFps = TARGET_FPS;
+    let newFps = currentTargetFps;
 
+    // 推理时间过长（>400ms），立即降低帧率
     if (avgInferenceTime > targetInferenceTime * 2) {
-        // 推理时间过长，降低帧率
-        newFps = Math.max(minFps, TARGET_FPS - 3);
-    } else if (avgInferenceTime < targetInferenceTime / 2 && inferenceTimes.length >= MAX_INFERENCE_SAMPLES) {
-        // 推理时间较短，可以提高帧率
-        newFps = Math.min(maxFps, TARGET_FPS + 2);
+        newFps = Math.max(MIN_FPS, currentTargetFps - 1);
+        console.log(`推理时间过长(${avgInferenceTime.toFixed(0)}ms)，降低帧率`);
+    }
+    // 推理时间很短（<100ms）且样本充足，可以缓慢提升帧率
+    else if (avgInferenceTime < targetInferenceTime / 2 &&
+             inferenceTimes.length >= MAX_INFERENCE_SAMPLES &&
+             currentTargetFps < TARGET_FPS) {
+        // 只有在帧率低于目标时才提升
+        newFps = Math.min(TARGET_FPS, currentTargetFps + 1);
+        console.log(`推理时间稳定(${avgInferenceTime.toFixed(0)}ms)，可提升帧率`);
     }
 
-    if (newFps !== TARGET_FPS) {
-        console.log(`自适应调整帧率: ${TARGET_FPS} -> ${newFps} FPS (平均推理时间: ${avgInferenceTime.toFixed(0)}ms)`);
+    if (newFps !== currentTargetFps) {
+        const previousFps = currentTargetFps;
+        currentTargetFps = newFps;
+        FRAME_INTERVAL = 1000 / currentTargetFps;
+        console.log(`帧率调整: ${previousFps} -> ${currentTargetFps} FPS`);
     }
 }
 
@@ -1074,8 +1235,12 @@ function adjustFrameRate(avgInferenceTime) {
  * 注意：检测框坐标是基于canvas像素尺寸的，与发送到后端的图像尺寸一致
  */
 function drawDetections(detections) {
-    if (!detections || detections.length === 0) return;
-    if (!ctx || !canvasElement) return;
+    if (!detections || detections.length === 0) {
+        return;
+    }
+    if (!ctx || !canvasElement) {
+        return;
+    }
 
     // 定义颜色映射
     const colors = [
@@ -1086,23 +1251,26 @@ function drawDetections(detections) {
     // 计算合适的线条宽度和字体大小
     const lineWidth = Math.max(2, Math.min(4, canvasElement.width / 400));
     const fontSize = Math.max(14, Math.min(20, canvasElement.width / 35));
+    const padding = 8;
 
     detections.forEach((det, index) => {
-        const bbox = det.bbox; // [x1, y1, x2, y2]
+        const bbox = det.bbox; // [x1, y1, x2, y2] - 已还原到原始尺寸
         const className = det.class;
         const confidence = det.confidence;
 
         // 选择颜色
         const color = colors[index % colors.length];
 
-        // 计算框的位置和尺寸
-        const x = Math.max(0, bbox[0]);
-        const y = Math.max(0, bbox[1]);
-        const width = Math.min(bbox[2] - bbox[0], canvasElement.width - x);
-        const height = Math.min(bbox[3] - bbox[1], canvasElement.height - y);
+        // 计算框的位置和尺寸（坐标已由后端还原到原始图像尺寸）
+        const x = Math.max(0, Math.round(bbox[0]));
+        const y = Math.max(0, Math.round(bbox[1]));
+        const width = Math.round(bbox[2] - bbox[0]);
+        const height = Math.round(bbox[3] - bbox[1]);
 
         // 跳过无效的框
-        if (width <= 0 || height <= 0) return;
+        if (width <= 0 || height <= 0) {
+            return;
+        }
 
         // 绘制检测框
         ctx.strokeStyle = color;
@@ -1115,32 +1283,35 @@ function drawDetections(detections) {
         const textMetrics = ctx.measureText(label);
         const textWidth = textMetrics.width;
         const textHeight = fontSize;
-        const padding = 6;
 
-        // 计算标签位置（确保不超出画面）
+        // 计算标签位置（默认在框上方）
         let labelX = x;
-        let labelY = y - textHeight - padding * 2;
-        if (labelY < 0) {
-            labelY = y + textHeight + padding;
+        let labelY = y - textHeight - padding;
+
+        // 如果框太靠上，标签放在框内上方
+        if (labelY < padding) {
+            labelY = y + padding;
         }
+
+        // 确保标签不超出右边界
         if (labelX + textWidth + padding * 2 > canvasElement.width) {
             labelX = canvasElement.width - textWidth - padding * 2;
         }
-        if (labelX < 0) {
-            labelX = 0;
+
+        // 确保标签不超出左边界
+        if (labelX < padding) {
+            labelX = padding;
         }
 
         // 绘制标签背景
         ctx.fillStyle = color;
-        ctx.fillRect(labelX, labelY - textHeight - padding / 2, textWidth + padding * 2, textHeight + padding);
+        ctx.fillRect(labelX - padding/2, labelY - textHeight/2, textWidth + padding, textHeight + 4);
 
         // 绘制标签文字
         ctx.fillStyle = '#FFFFFF';
-        ctx.textBaseline = 'top';
-        ctx.fillText(label, labelX + padding, labelY - textHeight + padding / 2);
+        ctx.textBaseline = 'middle';
+        ctx.fillText(label, labelX, labelY + 2);
     });
-
-    console.log(`绘制了 ${detections.length} 个检测框`);
 }
 
 /**
@@ -1356,6 +1527,75 @@ function updateUIState(state) {
         case 'error':
             videoContainer.classList.remove('detection-active');
             break;
+    }
+}
+
+/**
+ * 显示速率限制警告
+ */
+function showRateLimitWarning(backoffSeconds) {
+    // 查找或创建警告元素
+    let warningEl = document.getElementById('rateLimitWarning');
+    if (!warningEl) {
+        warningEl = document.createElement('div');
+        warningEl.id = 'rateLimitWarning';
+        warningEl.style.cssText = `
+            position: fixed;
+            top: 80px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: linear-gradient(135deg, #ff6b6b 0%, #ee5a5a 100%);
+            color: white;
+            padding: 12px 24px;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            z-index: 1000;
+            font-size: 14px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            animation: slideDown 0.3s ease;
+        `;
+        document.body.appendChild(warningEl);
+    }
+
+    warningEl.innerHTML = `
+        <i class="fas fa-exclamation-triangle"></i>
+        <span>请求过于频繁，暂停检测 <span id="rateLimitCountdown">${backoffSeconds}</span> 秒后恢复...</span>
+    `;
+    warningEl.style.display = 'flex';
+
+    // 启动倒计时
+    let remainingSeconds = backoffSeconds;
+    const countdownEl = document.getElementById('rateLimitCountdown');
+
+    if (window.rateLimitCountdownInterval) {
+        clearInterval(window.rateLimitCountdownInterval);
+    }
+
+    window.rateLimitCountdownInterval = setInterval(() => {
+        remainingSeconds--;
+        if (countdownEl) {
+            countdownEl.textContent = remainingSeconds;
+        }
+        if (remainingSeconds <= 0) {
+            clearInterval(window.rateLimitCountdownInterval);
+            hideRateLimitWarning();
+        }
+    }, 1000);
+}
+
+/**
+ * 隐藏速率限制警告
+ */
+function hideRateLimitWarning() {
+    const warningEl = document.getElementById('rateLimitWarning');
+    if (warningEl) {
+        warningEl.style.display = 'none';
+    }
+    if (window.rateLimitCountdownInterval) {
+        clearInterval(window.rateLimitCountdownInterval);
+        window.rateLimitCountdownInterval = null;
     }
 }
 

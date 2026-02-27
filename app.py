@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, redirect, url_for, flash, jsonify
+from flask import Flask, render_template, request, redirect, url_for, flash, jsonify, abort
 from flask.json.provider import DefaultJSONProvider
 import os
 import json
@@ -271,22 +271,36 @@ def about():
     return render_template('about.html')
 
 
+# ============================================================================
+# 摄像头实时检测功能 - 已禁用
+# 如需启用，将 CAMERA_FEATURE_ENABLED 改为 True
+# ============================================================================
+CAMERA_FEATURE_ENABLED = False
+
+
 @app.route('/camera')
 def camera():
     """摄像头检测页面"""
+    if not CAMERA_FEATURE_ENABLED:
+        abort(404)
     return render_template('camera.html')
 
 
 @app.route('/camera/debug')
 def camera_debug():
     """摄像头诊断工具页面"""
+    if not CAMERA_FEATURE_ENABLED:
+        abort(404)
     return render_template('camera_debug.html')
 
 
 @app.route('/api/camera_detect', methods=['POST'])
-@limiter.limit('30/minute')
+@limiter.limit('1000/minute')  # 摄像头实时检测专用限制（覆盖默认限制）
 def camera_detect():
     """接收摄像头帧进行推理的API接口"""
+    if not CAMERA_FEATURE_ENABLED:
+        return {'success': False, 'error': '功能已禁用'}, 404
+
     try:
         # 检查是否有图像数据
         if 'image' not in request.files:
@@ -295,6 +309,14 @@ def camera_detect():
         file = request.files['image']
         if file.filename == '':
             return {'success': False, 'error': '没有选择文件'}, 400
+
+        # 获取缩放比例（用于将检测框还原到原始尺寸）
+        scale = 1.0
+        if 'scale' in request.form:
+            try:
+                scale = float(request.form['scale'])
+            except ValueError:
+                scale = 1.0
 
         # 保存临时文件
         import tempfile
@@ -344,10 +366,13 @@ def camera_detect():
                         # 获取类别名称
                         class_name = yolo_inference.model.names[cls] if hasattr(yolo_inference.model, 'names') else f'class_{cls}'
 
+                        # 将检测框坐标还原到原始尺寸
+                        original_box = [float(x / scale) for x in box]
+
                         detections.append({
                             'class': class_name,
                             'confidence': float(conf),
-                            'bbox': [float(x) for x in box],
+                            'bbox': original_box,
                             'class_id': cls
                         })
 
@@ -372,6 +397,10 @@ def camera_detect():
     except Exception as e:
         logger.error(f"Camera detection error: {str(e)}")
         return {'success': False, 'error': f'检测失败: {str(e)}'}, 500
+
+# ============================================================================
+# 摄像头功能代码结束
+# ============================================================================
 
 
 @app.route('/infer', methods=['POST'])
