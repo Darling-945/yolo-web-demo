@@ -54,29 +54,39 @@ function initializeCamera() {
     if (videoElement && canvasElement) {
         ctx = canvasElement.getContext('2d');
 
+        // 更新canvas显示尺寸以匹配视频
+        function updateCanvasDisplaySize() {
+            if (videoElement.videoWidth > 0 && videoElement.videoHeight > 0) {
+                const rect = videoElement.getBoundingClientRect();
+                canvasElement.style.width = rect.width + 'px';
+                canvasElement.style.height = rect.height + 'px';
+            }
+        }
+
         // 监听视频元数据加载完成
         videoElement.addEventListener('loadedmetadata', function() {
-            // 等待下一帧以确保尺寸正确
-            requestAnimationFrame(() => {
-                if (videoElement.videoWidth > 0 && videoElement.videoHeight > 0) {
-                    canvasElement.width = videoElement.videoWidth;
-                    canvasElement.height = videoElement.videoHeight;
-                    console.log(`视频元数据加载完成: ${videoElement.videoWidth}x${videoElement.videoHeight}`);
-                }
-            });
+            if (videoElement.videoWidth > 0 && videoElement.videoHeight > 0) {
+                canvasElement.width = videoElement.videoWidth;
+                canvasElement.height = videoElement.videoHeight;
+                console.log(`Canvas像素尺寸: ${videoElement.videoWidth}x${videoElement.videoHeight}`);
+            }
         });
 
-        // 额外监听视频播放事件，确保尺寸更新
+        // 监听视频播放事件，更新canvas显示尺寸
         videoElement.addEventListener('playing', function() {
             if (videoElement.videoWidth > 0 && videoElement.videoHeight > 0) {
                 if (canvasElement.width !== videoElement.videoWidth ||
                     canvasElement.height !== videoElement.videoHeight) {
                     canvasElement.width = videoElement.videoWidth;
                     canvasElement.height = videoElement.videoHeight;
-                    console.log(`视频播放中更新Canvas尺寸: ${videoElement.videoWidth}x${videoElement.videoHeight}`);
+                    console.log(`Canvas像素尺寸更新: ${videoElement.videoWidth}x${videoElement.videoHeight}`);
                 }
             }
+            updateCanvasDisplaySize();
         });
+
+        // 监听窗口大小变化，更新canvas显示尺寸
+        window.addEventListener('resize', updateCanvasDisplaySize);
     }
 }
 
@@ -912,16 +922,19 @@ async function captureAndDetect() {
     }
 
     try {
-        // 设置canvas尺寸与视频原始尺寸一致
+        // 设置canvas像素尺寸与视频原始尺寸一致
         const targetWidth = videoElement.videoWidth;
         const targetHeight = videoElement.videoHeight;
 
-        // 只有尺寸变化时才重新设置
         if (canvasElement.width !== targetWidth || canvasElement.height !== targetHeight) {
             canvasElement.width = targetWidth;
             canvasElement.height = targetHeight;
-            console.log(`Canvas尺寸已更新: ${targetWidth}x${targetHeight}`);
         }
+
+        // 更新canvas显示尺寸以匹配视频显示尺寸
+        const videoRect = videoElement.getBoundingClientRect();
+        canvasElement.style.width = videoRect.width + 'px';
+        canvasElement.style.height = videoRect.height + 'px';
 
         // 绘制当前帧到canvas
         ctx.drawImage(videoElement, 0, 0, canvasElement.width, canvasElement.height);
@@ -1058,24 +1071,11 @@ function adjustFrameRate(avgInferenceTime) {
 
 /**
  * 在canvas上绘制检测结果
- * 注意：检测框坐标需要根据canvas与视频的尺寸比例进行缩放
+ * 注意：检测框坐标是基于canvas像素尺寸的，与发送到后端的图像尺寸一致
  */
 function drawDetections(detections) {
     if (!detections || detections.length === 0) return;
-    if (!ctx || !canvasElement || !videoElement) return;
-
-    // 获取视频的实际显示尺寸
-    const videoRect = videoElement.getBoundingClientRect();
-    const displayWidth = videoRect.width;
-    const displayHeight = videoRect.height;
-
-    // 获取视频的原始尺寸
-    const videoWidth = videoElement.videoWidth;
-    const videoHeight = videoElement.videoHeight;
-
-    // 计算缩放比例（因为canvas像素尺寸与视频显示尺寸可能不同）
-    const scaleX = canvasElement.width / videoWidth;
-    const scaleY = canvasElement.height / videoHeight;
+    if (!ctx || !canvasElement) return;
 
     // 定义颜色映射
     const colors = [
@@ -1083,47 +1083,64 @@ function drawDetections(detections) {
         '#F6FF33', '#FF8C33', '#8C33FF', '#FF338C', '#33FF8C'
     ];
 
+    // 计算合适的线条宽度和字体大小
+    const lineWidth = Math.max(2, Math.min(4, canvasElement.width / 400));
+    const fontSize = Math.max(14, Math.min(20, canvasElement.width / 35));
+
     detections.forEach((det, index) => {
-        const bbox = det.bbox; // [x1, y1, x2, y2] - 基于发送图像的坐标
-        const class_name = det.class;
+        const bbox = det.bbox; // [x1, y1, x2, y2]
+        const className = det.class;
         const confidence = det.confidence;
 
         // 选择颜色
         const color = colors[index % colors.length];
 
-        // 坐标已经是基于canvas像素尺寸的，直接使用
-        const x = bbox[0];
-        const y = bbox[1];
-        const width = bbox[2] - bbox[0];
-        const height = bbox[3] - bbox[1];
+        // 计算框的位置和尺寸
+        const x = Math.max(0, bbox[0]);
+        const y = Math.max(0, bbox[1]);
+        const width = Math.min(bbox[2] - bbox[0], canvasElement.width - x);
+        const height = Math.min(bbox[3] - bbox[1], canvasElement.height - y);
 
         // 跳过无效的框
-        if (width <= 0 || height <= 0 || x < 0 || y < 0) return;
+        if (width <= 0 || height <= 0) return;
 
-        // 绘制检测框（使用较粗的线条以便在缩放后仍可见）
+        // 绘制检测框
         ctx.strokeStyle = color;
-        ctx.lineWidth = Math.max(2, Math.min(4, canvasElement.width / 300));
+        ctx.lineWidth = lineWidth;
         ctx.strokeRect(x, y, width, height);
 
-        // 绘制标签背景
-        const fontSize = Math.max(12, Math.min(18, canvasElement.width / 40));
+        // 绘制标签
+        const label = `${className} ${(confidence * 100).toFixed(0)}%`;
         ctx.font = `bold ${fontSize}px Arial`;
-        const label = `${class_name} ${(confidence * 100).toFixed(1)}%`;
-        const textWidth = ctx.measureText(label).width;
-        const textHeight = fontSize + 4;
+        const textMetrics = ctx.measureText(label);
+        const textWidth = textMetrics.width;
+        const textHeight = fontSize;
+        const padding = 6;
 
-        // 确保标签不会超出画面顶部
-        const labelY = Math.max(textHeight + 4, y);
-        const labelX = Math.max(0, Math.min(x, canvasElement.width - textWidth - 16));
+        // 计算标签位置（确保不超出画面）
+        let labelX = x;
+        let labelY = y - textHeight - padding * 2;
+        if (labelY < 0) {
+            labelY = y + textHeight + padding;
+        }
+        if (labelX + textWidth + padding * 2 > canvasElement.width) {
+            labelX = canvasElement.width - textWidth - padding * 2;
+        }
+        if (labelX < 0) {
+            labelX = 0;
+        }
 
+        // 绘制标签背景
         ctx.fillStyle = color;
-        ctx.fillRect(labelX, labelY - textHeight - 4, textWidth + 16, textHeight + 4);
+        ctx.fillRect(labelX, labelY - textHeight - padding / 2, textWidth + padding * 2, textHeight + padding);
 
         // 绘制标签文字
         ctx.fillStyle = '#FFFFFF';
-        ctx.font = `bold ${fontSize}px Arial`;
-        ctx.fillText(label, labelX + 8, labelY - 6);
+        ctx.textBaseline = 'top';
+        ctx.fillText(label, labelX + padding, labelY - textHeight + padding / 2);
     });
+
+    console.log(`绘制了 ${detections.length} 个检测框`);
 }
 
 /**
