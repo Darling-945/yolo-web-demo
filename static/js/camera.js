@@ -56,9 +56,26 @@ function initializeCamera() {
 
         // 监听视频元数据加载完成
         videoElement.addEventListener('loadedmetadata', function() {
-            // 设置canvas尺寸与视频一致
-            canvasElement.width = videoElement.videoWidth;
-            canvasElement.height = videoElement.videoHeight;
+            // 等待下一帧以确保尺寸正确
+            requestAnimationFrame(() => {
+                if (videoElement.videoWidth > 0 && videoElement.videoHeight > 0) {
+                    canvasElement.width = videoElement.videoWidth;
+                    canvasElement.height = videoElement.videoHeight;
+                    console.log(`视频元数据加载完成: ${videoElement.videoWidth}x${videoElement.videoHeight}`);
+                }
+            });
+        });
+
+        // 额外监听视频播放事件，确保尺寸更新
+        videoElement.addEventListener('playing', function() {
+            if (videoElement.videoWidth > 0 && videoElement.videoHeight > 0) {
+                if (canvasElement.width !== videoElement.videoWidth ||
+                    canvasElement.height !== videoElement.videoHeight) {
+                    canvasElement.width = videoElement.videoWidth;
+                    canvasElement.height = videoElement.videoHeight;
+                    console.log(`视频播放中更新Canvas尺寸: ${videoElement.videoWidth}x${videoElement.videoHeight}`);
+                }
+            }
         });
     }
 }
@@ -876,6 +893,12 @@ function startDetectionLoop() {
 async function captureAndDetect() {
     if (!videoElement || !canvasElement || !ctx) return;
 
+    // 检查视频是否就绪
+    if (videoElement.videoWidth === 0 || videoElement.videoHeight === 0) {
+        console.log('视频尺寸尚未就绪，跳过此帧');
+        return;
+    }
+
     // 检查队列大小，避免堆积
     if (requestQueue.length >= MAX_QUEUE_SIZE) {
         console.log('请求队列已满，跳过此帧');
@@ -889,9 +912,16 @@ async function captureAndDetect() {
     }
 
     try {
-        // 设置canvas尺寸
-        canvasElement.width = videoElement.videoWidth;
-        canvasElement.height = videoElement.videoHeight;
+        // 设置canvas尺寸与视频原始尺寸一致
+        const targetWidth = videoElement.videoWidth;
+        const targetHeight = videoElement.videoHeight;
+
+        // 只有尺寸变化时才重新设置
+        if (canvasElement.width !== targetWidth || canvasElement.height !== targetHeight) {
+            canvasElement.width = targetWidth;
+            canvasElement.height = targetHeight;
+            console.log(`Canvas尺寸已更新: ${targetWidth}x${targetHeight}`);
+        }
 
         // 绘制当前帧到canvas
         ctx.drawImage(videoElement, 0, 0, canvasElement.width, canvasElement.height);
@@ -1028,9 +1058,24 @@ function adjustFrameRate(avgInferenceTime) {
 
 /**
  * 在canvas上绘制检测结果
+ * 注意：检测框坐标需要根据canvas与视频的尺寸比例进行缩放
  */
 function drawDetections(detections) {
     if (!detections || detections.length === 0) return;
+    if (!ctx || !canvasElement || !videoElement) return;
+
+    // 获取视频的实际显示尺寸
+    const videoRect = videoElement.getBoundingClientRect();
+    const displayWidth = videoRect.width;
+    const displayHeight = videoRect.height;
+
+    // 获取视频的原始尺寸
+    const videoWidth = videoElement.videoWidth;
+    const videoHeight = videoElement.videoHeight;
+
+    // 计算缩放比例（因为canvas像素尺寸与视频显示尺寸可能不同）
+    const scaleX = canvasElement.width / videoWidth;
+    const scaleY = canvasElement.height / videoHeight;
 
     // 定义颜色映射
     const colors = [
@@ -1039,37 +1084,45 @@ function drawDetections(detections) {
     ];
 
     detections.forEach((det, index) => {
-        const bbox = det.bbox; // [x1, y1, x2, y2]
+        const bbox = det.bbox; // [x1, y1, x2, y2] - 基于发送图像的坐标
         const class_name = det.class;
         const confidence = det.confidence;
 
         // 选择颜色
         const color = colors[index % colors.length];
 
-        // 计算框的尺寸
+        // 坐标已经是基于canvas像素尺寸的，直接使用
         const x = bbox[0];
         const y = bbox[1];
         const width = bbox[2] - bbox[0];
         const height = bbox[3] - bbox[1];
 
-        // 绘制检测框
+        // 跳过无效的框
+        if (width <= 0 || height <= 0 || x < 0 || y < 0) return;
+
+        // 绘制检测框（使用较粗的线条以便在缩放后仍可见）
         ctx.strokeStyle = color;
-        ctx.lineWidth = 3;
+        ctx.lineWidth = Math.max(2, Math.min(4, canvasElement.width / 300));
         ctx.strokeRect(x, y, width, height);
 
         // 绘制标签背景
+        const fontSize = Math.max(12, Math.min(18, canvasElement.width / 40));
+        ctx.font = `bold ${fontSize}px Arial`;
         const label = `${class_name} ${(confidence * 100).toFixed(1)}%`;
-        ctx.font = 'bold 16px Arial';
         const textWidth = ctx.measureText(label).width;
-        const textHeight = 20;
+        const textHeight = fontSize + 4;
+
+        // 确保标签不会超出画面顶部
+        const labelY = Math.max(textHeight + 4, y);
+        const labelX = Math.max(0, Math.min(x, canvasElement.width - textWidth - 16));
 
         ctx.fillStyle = color;
-        ctx.fillRect(x, y - textHeight - 8, textWidth + 16, textHeight + 8);
+        ctx.fillRect(labelX, labelY - textHeight - 4, textWidth + 16, textHeight + 4);
 
         // 绘制标签文字
         ctx.fillStyle = '#FFFFFF';
-        ctx.font = 'bold 16px Arial';
-        ctx.fillText(label, x + 8, y - 8);
+        ctx.font = `bold ${fontSize}px Arial`;
+        ctx.fillText(label, labelX + 8, labelY - 6);
     });
 }
 

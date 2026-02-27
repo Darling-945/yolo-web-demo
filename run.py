@@ -18,7 +18,7 @@ DEFAULT_CONFIG = {
     'HOST': '0.0.0.0',
     'PORT': '5000',
     'SECRET_KEY': secrets.token_hex(32),
-    'MAX_CONTENT_LENGTH': '104857600',
+    'MAX_CONTENT_LENGTH': '524288000',  # 500MB to support video uploads
     'UPLOAD_FOLDER': 'static/uploads',
     'OUTPUT_FOLDER': 'static/outputs',
     'MAX_FILE_AGE': '3600',
@@ -168,7 +168,6 @@ def start_app(host, port, config):
         load_dotenv(override=True)
 
         # Windows下禁用重载器以避免与多线程冲突
-        import sys
         use_reloader = config.DEBUG and sys.platform != 'win32'
         app.run(host=host, port=port, debug=config.DEBUG, use_reloader=use_reloader, threaded=True)
     except KeyboardInterrupt:

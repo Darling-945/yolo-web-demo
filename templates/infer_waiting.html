@@ -25,13 +25,13 @@
                 <div class="file-info text-center mb-4">
                     <h5 class="fw-semibold mb-2">
                         <i class="fas {% if file_type == 'video' %}fa-video{% else %}fa-image{% endif %} me-2" style="color: var(--primary-color);"></i>
-                        {% if task.file_info %}
+                        {% if task and task.file_info and task.file_info.filename %}
                             {{ task.file_info.filename }}
                         {% else %}
                             上传的文件
                         {% endif %}
                     </h5>
-                    <span class="badge bg-{{ 'success' if task.status == 'completed' else 'info' }} fs-6">
+                    <span class="badge bg-{{ 'success' if task and task.status == 'completed' else 'info' }} fs-6">
                         {% if file_type == 'video' %}视频推理{% else %}图片检测{% endif %}
                     </span>
                 </div>
@@ -355,101 +355,5 @@ window.addEventListener('beforeunload', function() {
     stopPolling();
 });
 </script>
-
-<style>
-/* 加载图标容器 - 确保旋转只应用于图标 */
-.loading-icon-wrapper {
-    display: inline-block;
-    margin: 1rem 0;
-}
-
-/* 确保 fa-spin 只影响图标本身，不影响父元素 */
-.loading-icon-wrapper i,
-.fa-spin {
-    display: inline-block;
-    animation: fa-spin 2s infinite linear;
-    transform-origin: center center;
-}
-
-/* 确保主容器不会旋转 */
-.main-container,
-header,
-.progress-section,
-.steps-section,
-.action-section {
-    animation: none !important;
-    transform: none !important;
-}
-
-/* 禁用 main-container 的 float-animation */
-.main-container.fade-in {
-    animation: fadeIn 0.8s ease-out !important;
-}
-
-@keyframes fadeIn {
-    from { opacity: 0; transform: translateY(20px); }
-    to { opacity: 1; transform: translateY(0); }
-}
-
-.step-item {
-    transition: all 0.3s ease;
-    opacity: 0.5;
-}
-
-.step-item.active {
-    opacity: 1;
-}
-
-.step-item.completed .step-icon {
-    background: var(--success-color) !important;
-}
-
-/* 深色模式适配 */
-body.dark-mode .info-box {
-    background: rgba(26, 26, 46, 0.8) !important;
-    border: 1px solid var(--dark-border-color);
-}
-
-body.dark-mode .step-item {
-    color: var(--dark-text-primary);
-}
-
-body.dark-mode .step-item small {
-    color: var(--dark-text-secondary) !important;
-}
-
-/* 进度卡片动画 */
-.progress-card {
-    animation: fadeInUp 0.5s ease;
-}
-
-@keyframes fadeInUp {
-    from {
-        opacity: 0;
-        transform: translateY(20px);
-    }
-    to {
-        opacity: 1;
-        transform: translateY(0);
-    }
-}
-
-/* 响应式优化 */
-@media (max-width: 576px) {
-    .progress-card .card-body {
-        padding: 1.5rem !important;
-    }
-
-    .step-icon {
-        width: 32px !important;
-        height: 32px !important;
-        font-size: 0.9rem;
-    }
-
-    .info-box {
-        padding: 0.75rem !important;
-    }
-}
-</style>
 
 {% endblock %}

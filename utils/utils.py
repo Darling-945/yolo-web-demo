@@ -7,11 +7,17 @@ import logging
 import gc
 import threading
 from datetime import datetime
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, List, Union
 from werkzeug.utils import secure_filename
+from werkzeug.datastructures import FileStorage
 from PIL import Image
 from concurrent.futures import ThreadPoolExecutor
-from run import get_config
+from flask import Request
+from run import get_config, Config
+
+# File size limits (in bytes)
+MAX_IMAGE_SIZE = 50 * 1024 * 1024  # 50MB
+MAX_VIDEO_SIZE = 500 * 1024 * 1024  # 500MB
 
 config_instance = get_config()
 os.makedirs(os.path.dirname(config_instance.LOG_FILE), exist_ok=True)
@@ -74,7 +80,7 @@ def is_valid_image_file(file_path: str) -> bool:
             return False
 
         file_size = os.path.getsize(file_path)
-        if file_size == 0 or file_size > 50 * 1024 * 1024:
+        if file_size == 0 or file_size > MAX_IMAGE_SIZE:
             return False
 
         filename = os.path.basename(file_path)
@@ -107,7 +113,7 @@ def is_valid_video_file(file_path: str) -> bool:
             return False
 
         file_size = os.path.getsize(file_path)
-        if file_size == 0 or file_size > 500 * 1024 * 1024:  # 500MB limit for videos
+        if file_size == 0 or file_size > MAX_VIDEO_SIZE:
             return False
 
         filename = os.path.basename(file_path)
@@ -157,7 +163,7 @@ def get_file_type(file_path: str) -> str:
         return 'unknown'
 
 
-def secure_file_upload(file, upload_folder: str) -> Dict[str, Any]:
+def secure_file_upload(file: Optional[FileStorage], upload_folder: str) -> Dict[str, Any]:
     """Handle file upload securely (single file)"""
     try:
         if not file or not file.filename:
@@ -219,7 +225,7 @@ def secure_file_upload(file, upload_folder: str) -> Dict[str, Any]:
         return {'success': False, 'error': f'Upload failed: {str(e)}'}
 
 
-def secure_multiple_files_upload(files, upload_folder: str) -> Dict[str, Any]:
+def secure_multiple_files_upload(files: Optional[List[FileStorage]], upload_folder: str) -> Dict[str, Any]:
     """Handle multiple file uploads securely"""
     try:
         if not files:
@@ -347,7 +353,7 @@ def cleanup_old_files(directory: str, max_age_seconds: int, use_thread: bool = T
         return _cleanup_sync()
 
 
-def schedule_file_cleanup():
+def schedule_file_cleanup() -> None:
     """Clean up old files in upload and output directories (runs in background)"""
     cfg = get_config()
     upload_removed = cleanup_old_files(cfg.UPLOAD_FOLDER, cfg.MAX_FILE_AGE, use_thread=False)
@@ -356,7 +362,7 @@ def schedule_file_cleanup():
         logger.info(f"Cleanup: {upload_removed} upload, {output_removed} output files removed")
 
 
-def schedule_async_file_cleanup():
+def schedule_async_file_cleanup() -> None:
     """Trigger async file cleanup (non-blocking)"""
     cfg = get_config()
     cleanup_old_files(cfg.UPLOAD_FOLDER, cfg.MAX_FILE_AGE, use_thread=True)
@@ -364,7 +370,7 @@ def schedule_async_file_cleanup():
     logger.info("Async cleanup scheduled")
 
 
-def log_security_event(event_type: str, details: Dict[str, Any]):
+def log_security_event(event_type: str, details: Dict[str, Any]) -> None:
     """Log security-related events"""
     logger.warning(f"SECURITY EVENT - {event_type}: {details}")
 
@@ -396,9 +402,8 @@ def get_file_info(file_path: str) -> Dict[str, Any]:
         return {}
 
 
-def setup_app_logging(config):
+def setup_app_logging(config: Config) -> logging.Logger:
     """Set up logging configuration for the Flask app"""
-    import logging
     from threading import Timer
 
     logging.basicConfig(
@@ -422,16 +427,24 @@ def setup_app_logging(config):
     return logging.getLogger(__name__)
 
 
-def process_inference_parameters(request, config):
+def process_inference_parameters(request: Request, config: Config) -> Dict[str, Union[str, float]]:
     """Process and validate inference parameters from request"""
     model_name = request.form.get('model', config.DEFAULT_MODEL)
 
+    # Validate model name format (must end with .pt, .onnx, or .engine)
+    valid_extensions = ('.pt', '.onnx', '.engine')
+    if not model_name.endswith(valid_extensions):
+        logger.warning(f"Invalid model format: {model_name}, using default: {config.DEFAULT_MODEL}")
+        model_name = config.DEFAULT_MODEL
+
+    # Validate confidence threshold
     try:
         conf_threshold = float(request.form.get('confidence', config.DEFAULT_CONFIDENCE))
         conf_threshold = max(0.0, min(1.0, conf_threshold))
     except ValueError:
         conf_threshold = config.DEFAULT_CONFIDENCE
 
+    # Validate IOU threshold
     try:
         iou_threshold = float(request.form.get('iou', config.DEFAULT_IOU))
         iou_threshold = max(0.0, min(1.0, iou_threshold))

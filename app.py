@@ -1,4 +1,5 @@
 from flask import Flask, render_template, request, redirect, url_for, flash, jsonify
+from flask.json.provider import DefaultJSONProvider
 import os
 import json
 import numpy as np
@@ -7,18 +8,18 @@ import socket
 import select
 import uuid
 import threading
+from typing import Optional, Dict
 from model_inference import yolo_inference, get_available_models
 from run import get_config
 from utils import secure_file_upload, secure_multiple_files_upload, log_security_event, setup_app_logging, process_inference_parameters, generate_unique_filename, normalize_static_path
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
-from collections import defaultdict
 
 # Initialize Flask app
 app = Flask(__name__, static_folder='static', static_url_path='/static')
 
-# Custom JSON encoder to handle NumPy types
-class NumpyJSONEncoder(json.JSONEncoder):
+# Custom JSON provider to handle NumPy types (Flask 2.3+ compatible)
+class NumpyJSONProvider(DefaultJSONProvider):
     def default(self, obj):
         if isinstance(obj, np.integer):
             return int(obj)
@@ -30,12 +31,16 @@ class NumpyJSONEncoder(json.JSONEncoder):
             return bool(obj)
         return super().default(obj)
 
-# Set custom JSON encoder
-app.json_encoder = NumpyJSONEncoder
+# Set custom JSON provider
+app.json_provider_class = NumpyJSONProvider
 
 # Load configuration
 config = get_config()
 app.config.from_object(config)
+
+# Application constants
+VIDEO_PROCESSING_TIMEOUT_SECONDS = 300  # 5 minutes timeout for video processing
+BATCH_META_DIR = 'static/batch_meta'  # Directory for batch metadata files
 
 # Set up logging, directories, and cleanup using utils
 logger = setup_app_logging(config)
@@ -115,14 +120,20 @@ def fail_task(task_id, error_message):
             logger.error(f"Task {task_id} failed: {error_message}")
 
 
-def get_task(task_id):
-    """获取任务信息"""
+def get_task(task_id: str) -> Optional[Dict]:
+    """获取任务信息（返回深拷贝以避免竞争条件）"""
+    import copy
     with tasks_lock:
-        return inference_tasks.get(task_id)
+        task = inference_tasks.get(task_id)
+        if task is not None:
+            return copy.deepcopy(task)
+        return None
 
 
-def cleanup_old_tasks(max_age_seconds=3600):
+def cleanup_old_tasks(max_age_seconds: int = None):
     """清理旧任务"""
+    if max_age_seconds is None:
+        max_age_seconds = config.MAX_FILE_AGE
     current_time = time.time()
     with tasks_lock:
         to_remove = []
@@ -143,7 +154,7 @@ def start_task_cleanup_daemon():
     """启动任务清理守护线程"""
     def cleanup():
         while True:
-            time.sleep(300)  # 每5分钟清理一次
+            time.sleep(config.CLEANUP_INTERVAL)
             cleanup_old_tasks()
 
     cleanup_thread = threading.Thread(target=cleanup, daemon=True)
@@ -161,6 +172,10 @@ def is_client_connected() -> bool:
     """
     Check if the client is still connected.
     Returns False if client has disconnected, True otherwise.
+
+    Note: On Windows, direct socket detection is unreliable due to platform limitations.
+    The timeout mechanism in start_client_disconnect_monitor serves as the primary
+    protection against abandoned requests on Windows.
     """
     import sys
     try:
@@ -169,18 +184,29 @@ def is_client_connected() -> bool:
         if wsgi_input is None:
             return False
 
-        # Windows下简化检查，避免使用select+socket组合导致WinError 10038
+        # Windows platform has limited socket detection capabilities
         if sys.platform == 'win32':
-            # Windows下使用更简单的检查方式
+            # Try multiple detection methods on Windows
+            # Method 1: Check if stream is closed
             if hasattr(wsgi_input, 'stream'):
-                # 检查底层流状态
                 stream = wsgi_input.stream
-                if hasattr(stream, 'closed'):
-                    return not stream.closed
-            # 默认假设客户端仍然连接
+                if hasattr(stream, 'closed') and stream.closed:
+                    return False
+                # Check for raw socket
+                if hasattr(stream, 'raw') and hasattr(stream.raw, 'closed'):
+                    if stream.raw.closed:
+                        return False
+
+            # Method 2: Check werkzeug's response context
+            if hasattr(request, 'is_multiprocess'):
+                # In development server, assume connected
+                # Timeout will handle abandoned requests
+                return True
+
+            # Default: assume connected (rely on timeout)
             return True
         else:
-            # Linux/Mac下使用原有逻辑
+            # Linux/Mac: use select for reliable socket detection
             if hasattr(wsgi_input, '_sock'):
                 readable, _, _ = select.select([wsgi_input._sock], [], [], 0)
                 if readable:
@@ -188,7 +214,7 @@ def is_client_connected() -> bool:
                         data = wsgi_input._sock.recv(1, socket.MSG_PEEK | socket.MSG_DONTWAIT)
                         if not data:
                             return False
-                    except:
+                    except (socket.error, OSError):
                         return False
             return True
     except Exception:
@@ -197,10 +223,12 @@ def is_client_connected() -> bool:
         return True
 
 
-def start_client_disconnect_monitor(yolo_instance, timeout_seconds=300):
+def start_client_disconnect_monitor(yolo_instance, timeout_seconds: int = None):
     """
     Start a background thread that monitors client connection and cancels processing if disconnected.
     """
+    if timeout_seconds is None:
+        timeout_seconds = VIDEO_PROCESSING_TIMEOUT_SECONDS
     def monitor():
         start_time = time.time()
         while True:
@@ -465,8 +493,12 @@ def infer():
 
             if len(failed_files) > 0:
                 logger.warning(f"Failed to upload {len(failed_files)} files")
+                failed_names = []
                 for failed in failed_files:
                     logger.warning(f"Failed: {failed['filename']} - {failed['error']}")
+                    failed_names.append(f"{failed['filename']} ({failed['error']})")
+                # Show user which files failed
+                flash(f'{len(failed_files)} 个文件上传失败: {", ".join(failed_names[:5])}{"..." if len(failed_names) > 5 else ""}', 'warning')
 
             if len(uploaded_files) == 0:
                 flash('没有成功上传的文件', 'error')
@@ -630,24 +662,7 @@ def api_detect():
         yolo_inference.conf_threshold = original_conf
         yolo_inference.iou_threshold = original_iou
 
-        # Manually convert numpy types for JSON serialization
-        def convert_numpy(obj):
-            if isinstance(obj, np.integer):
-                return int(obj)
-            elif isinstance(obj, np.floating):
-                return float(obj)
-            elif isinstance(obj, np.ndarray):
-                return obj.tolist()
-            elif isinstance(obj, np.bool_):
-                return bool(obj)
-            elif isinstance(obj, dict):
-                return {key: convert_numpy(value) for key, value in obj.items()}
-            elif isinstance(obj, list):
-                return [convert_numpy(item) for item in obj]
-            return obj
-
-        result = convert_numpy(result)
-
+        # NumpyJSONProvider handles numpy type conversion automatically
         return jsonify({
             'success': True,
             'result': result,
@@ -740,9 +755,10 @@ def batch_upload():
             'timestamp': datetime.datetime.now().isoformat()
         }
 
-        # Store batch info in a temporary JSON file
+        # Store batch info in a dedicated metadata directory
         import json
-        batch_file_path = os.path.join(config.UPLOAD_FOLDER, f'batch_{batch_id}.json')
+        os.makedirs(BATCH_META_DIR, exist_ok=True)
+        batch_file_path = os.path.join(BATCH_META_DIR, f'batch_{batch_id}.json')
         with open(batch_file_path, 'w') as f:
             json.dump(batch_info, f)
 
@@ -768,8 +784,8 @@ def batch_inference():
         if not batch_id:
             return {'success': False, 'error': 'Batch ID required'}, 400
 
-        # Get batch info from storage
-        batch_file_path = os.path.join(config.UPLOAD_FOLDER, f'batch_{batch_id}.json')
+        # Get batch info from metadata directory
+        batch_file_path = os.path.join(BATCH_META_DIR, f'batch_{batch_id}.json')
         if not os.path.exists(batch_file_path):
             return {'success': False, 'error': 'Invalid batch ID'}, 400
 
@@ -913,8 +929,8 @@ def batch_results():
         return render_template('error.html', error_message='Batch ID not provided'), 400
 
     try:
-        # Get batch info from storage
-        batch_file_path = os.path.join(config.UPLOAD_FOLDER, f'batch_{batch_id}.json')
+        # Get batch info from metadata directory
+        batch_file_path = os.path.join(BATCH_META_DIR, f'batch_{batch_id}.json')
         if not os.path.exists(batch_file_path):
             return render_template('error.html', error_message='Invalid batch ID'), 404
 

@@ -31,10 +31,6 @@ except ImportError:
     FFMPEG_AVAILABLE = False
     logger.warning("imageio-ffmpeg not available, falling back to OpenCV encoders")
 
-# Set up logging
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
-
 # Model cache for preloading
 MODEL_CACHE = {}
 CACHE_LOCK = Lock()
@@ -377,23 +373,26 @@ class YOLOInference:
         logger.info(f"Video properties: {width}x{height}, {fps}fps, {total_frames} frames")
         logger.info(f"Batch processing enabled with batch_size={batch_size}")
 
-        # 临时存储所有处理后的帧，用于后续ffmpeg编码
+        # Memory-efficient video processing: use OpenCV for streaming write
+        # ffmpeg is only used for post-processing if available and video is short
+        MAX_FFMPEG_BUFFER_FRAMES = 500  # Limit to prevent memory issues
         processed_frames_buffer = []
-        use_ffmpeg = FFMPEG_AVAILABLE
+        use_ffmpeg = FFMPEG_AVAILABLE and total_frames <= MAX_FFMPEG_BUFFER_FRAMES
 
         if use_ffmpeg:
-            logger.info("Using ffmpeg for H264 encoding (faster loading, smaller file)")
-            # 使用ffmpeg时，先收集所有帧
-            out = None  # 占位符
+            logger.info(f"Using ffmpeg for H264 encoding (video under {MAX_FFMPEG_BUFFER_FRAMES} frames)")
+            out = None  # Placeholder for ffmpeg
             used_codec_name = 'H264 (ffmpeg)'
         else:
-            logger.info("ffmpeg not available, using OpenCV encoders")
+            if FFMPEG_AVAILABLE and total_frames > MAX_FFMPEG_BUFFER_FRAMES:
+                logger.info(f"Video too long for ffmpeg buffer ({total_frames} > {MAX_FFMPEG_BUFFER_FRAMES}), using OpenCV")
+            else:
+                logger.info("ffmpeg not available, using OpenCV encoders")
             # Setup video writer with better browser compatibility
-            # Windows下优先使用mp4v（内置支持），避免H264编码器问题
             fourcc_attempts = [
-                ('mp4v', cv2.VideoWriter_fourcc(*'mp4v')),  # 最通用，所有平台都支持
-                ('MJPG', cv2.VideoWriter_fourcc(*'MJPG')),  # Motion JPEG - 备用
-                ('XVID', cv2.VideoWriter_fourcc(*'XVID')),  # XVID - 可用时的选项
+                ('mp4v', cv2.VideoWriter_fourcc(*'mp4v')),  # Most compatible
+                ('MJPG', cv2.VideoWriter_fourcc(*'MJPG')),  # Motion JPEG - fallback
+                ('XVID', cv2.VideoWriter_fourcc(*'XVID')),  # XVID - alternative
             ]
 
             out = None
@@ -423,10 +422,6 @@ class YOLOInference:
         # Variables to store the last processed results for skipped frames
         last_annotated_frame = None
         last_frame_detections = []
-
-        # Store original thresholds
-        original_conf = self.conf_threshold
-        original_iou = self.iou_threshold
 
         # Ensure output directory exists
         os.makedirs(os.path.dirname(output_path), exist_ok=True)
@@ -759,10 +754,6 @@ class YOLOInference:
         total_detections = 0
         batch_detection_summary = {}
         inference_times = []
-
-        # Store original thresholds
-        original_conf = self.conf_threshold
-        original_iou = self.iou_threshold
 
         logger.info(f"Starting batch processing of {len(image_paths)} images")
 

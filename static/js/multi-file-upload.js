@@ -7,6 +7,10 @@
 let uploadedFiles = [];
 let selectedFilesInfo = [];
 
+// File size constants (must match server-side)
+const MAX_IMAGE_SIZE = 50 * 1024 * 1024;  // 50MB
+const MAX_VIDEO_SIZE = 500 * 1024 * 1024; // 500MB
+
 // Initialize multi-file upload
 document.addEventListener('DOMContentLoaded', function() {
     initializeMultiFileUpload();
@@ -125,7 +129,7 @@ function processSingleFile(file, index) {
     }
 
     // Validate file size
-    const maxSize = isImage ? 50 * 1024 * 1024 : 500 * 1024 * 1024; // 50MB for images, 500MB for videos
+    const maxSize = isImage ? MAX_IMAGE_SIZE : MAX_VIDEO_SIZE;
 
     if (file.size > maxSize) {
         const maxSizeMB = maxSize / (1024 * 1024);
