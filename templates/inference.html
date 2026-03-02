@@ -4,7 +4,9 @@
 <div class="main-container fade-in">
     <!-- 标题区域 -->
     <header class="text-center mb-5 mb-lg-6">
-        <i class="fas fa-chart-bar fa-4x fa-lg-5x mb-4 float-animation" style="color: var(--primary-color);"></i>
+        <div class="tech-icon-wrapper">
+            <i class="fas fa-chart-bar fa-4x fa-lg-5x mb-4 float-animation"></i>
+        </div>
         <h1 class="display-4 fw-bold mb-3">检测结果</h1>
         <p class="lead text-muted fs-5 mb-0">原始图片与检测结果的对比</p>
     </header>
@@ -16,7 +18,7 @@
                 <div class="card h-100 image-card">
                     <div class="card-header text-center py-4">
                         <h5 class="card-title mb-0 fw-semibold">
-                            <i class="fas fa-image me-2" style="color: var(--primary-color);"></i>
+                            <i class="fas fa-image me-2" style="color: var(--neon-cyan);"></i>
                             原始图片
                         </h5>
                     </div>
@@ -30,7 +32,7 @@
                                 loading="lazy"
                                 decoding="async"
                                 fetchpriority="high"
-                                style="max-height: 300px; object-fit: contain; border: 3px solid var(--primary-color);"
+                                style="max-height: 300px; object-fit: contain; border: 3px solid var(--neon-cyan); box-shadow: 0 0 20px rgba(0, 212, 255, 0.3);"
                                 onerror="this.onerror=null; this.src='data:image/svg+xml;charset=UTF-8,%3Csvg%20width%3D%22640%22%20height%3D%22350%22%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%3E%3Crect%20width%3D%22100%25%22%20height%3D%22100%25%22%20fill%3D%22%23f8f9fa%22%2F%3E%3Ctext%20x%3D%2250%25%22%20y%3D%2250%25%22%20dominant-baseline%3D%22middle%22%20text-anchor%3D%22middle%22%20fill%3D%22%236c757d%22%20font-family%3D%22sans-serif%22%20font-size%3D%2214px%22%3EOriginal%20image%20not%20available%3C%2Ftext%3E%3C%2Fsvg%3E';">
                             <div class="image-overlay">
                                 <button class="btn btn-outline-primary btn-lg" onclick="viewFullscreen('{{ url_for('static', filename=normalize_path(saveLocation)) }}')">
@@ -89,8 +91,8 @@
     <!-- 检测结果统计 -->
     <section class="statistics-section mb-5 mb-lg-6">
         <div class="statistics-card card mx-auto" style="max-width: 1000px;">
-            <div class="card-header text-center py-4" style="background: var(--bg-gradient-simple); color: white;">
-                <h4 class="card-title mb-0 fw-bold">
+            <div class="card-header text-center py-4" style="background: linear-gradient(135deg, rgba(0, 212, 255, 0.2) 0%, rgba(131, 56, 236, 0.2) 100%); border-bottom: 1px solid rgba(0, 212, 255, 0.2);">
+                <h4 class="card-title mb-0 fw-bold" style="color: var(--neon-cyan);">
                     <i class="fas fa-chart-bar me-2"></i>检测结果统计
                 </h4>
             </div>

@@ -4,7 +4,9 @@
 <div class="main-container fade-in">
     <!-- 标题区域 -->
     <header class="text-center mb-5 mb-lg-6">
-        <i class="fas fa-video fa-4x fa-lg-5x mb-4 float-animation" style="color: var(--primary-color);"></i>
+        <div class="tech-icon-wrapper">
+            <i class="fas fa-video fa-4x fa-lg-5x mb-4 float-animation"></i>
+        </div>
         <h1 class="display-4 fw-bold mb-3">视频检测结果</h1>
         <p class="lead text-muted fs-5 mb-0">原始视频与检测结果的对比</p>
     </header>
@@ -16,7 +18,7 @@
                 <div class="card h-100 video-card">
                     <div class="card-header text-center py-4">
                         <h5 class="card-title mb-0 fw-semibold">
-                            <i class="fas fa-video me-2" style="color: var(--primary-color);"></i>
+                            <i class="fas fa-video me-2" style="color: var(--neon-cyan);"></i>
                             原始视频
                         </h5>
                     </div>
@@ -25,7 +27,7 @@
                             {% if input_file %}
                             <div class="video-skeleton clickable-skeleton" id="originalVideoSkeleton" onclick="loadVideo('originalVideo')">
                                 <div class="skeleton-content">
-                                    <i class="fas fa-play-circle fa-4x text-primary mb-3 video-play-icon"></i>
+                                    <i class="fas fa-play-circle fa-4x mb-3 video-play-icon" style="color: var(--neon-cyan);"></i>
                                     <p class="mt-3 text-muted">点击加载视频</p>
                                 </div>
                             </div>
@@ -33,7 +35,7 @@
                                    data-src="{{ url_for('static', filename=normalize_path(input_file)) }}"
                                    class="img-fluid rounded-3 shadow-lg video-player lazy-video"
                                    preload="none"
-                                   style="max-height: 400px; border: 3px solid var(--primary-color); display: none;"
+                                   style="max-height: 400px; border: 3px solid var(--neon-cyan); box-shadow: 0 0 20px rgba(0, 212, 255, 0.3); display: none;"
                                    controls
                                    onloadeddata="hideVideoSkeleton('originalVideoSkeleton')"
                                    onerror="handleVideoError(this, '原始视频')">
@@ -63,7 +65,7 @@
                             {% if result.output_video_path %}
                             <div class="video-skeleton clickable-skeleton" id="resultVideoSkeleton" onclick="loadVideo('resultVideo')">
                                 <div class="skeleton-content">
-                                    <i class="fas fa-play-circle fa-4x text-success mb-3 video-play-icon"></i>
+                                    <i class="fas fa-play-circle fa-4x mb-3 video-play-icon" style="color: var(--success-color);"></i>
                                     <p class="mt-3 text-muted">点击加载视频</p>
                                 </div>
                             </div>
@@ -71,7 +73,7 @@
                                    data-src="{{ url_for('static', filename=normalize_path(result.output_video_path)) }}"
                                    class="img-fluid rounded-3 shadow-lg video-player lazy-video"
                                    preload="none"
-                                   style="max-height: 400px; border: 3px solid var(--success-color); display: none;"
+                                   style="max-height: 400px; border: 3px solid var(--success-color); box-shadow: 0 0 20px rgba(0, 255, 136, 0.3); display: none;"
                                    controls
                                    onloadeddata="hideVideoSkeleton('resultVideoSkeleton')"
                                    onerror="handleVideoError(this, '检测结果视频')">
