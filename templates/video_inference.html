@@ -341,19 +341,25 @@ document.addEventListener('DOMContentLoaded', function() {
         showToast('info', '视频处理完成！处理耗时: {{ "%.2f"|format(result.summary.processing_time) }}秒，处理了{{ result.summary.processed_frames }}帧', 'info');
     {% endif %}
 
-    // 视频加载状态处理
+    // 视频加载状态处理 - 减少toast数量
     const videos = document.querySelectorAll('video');
-    videos.forEach(video => {
-        video.addEventListener('loadstart', function() {
-            showToast('info', '正在加载视频...', 'info');
-        });
+    let videoLoadCount = 0;
+    let videoErrorCount = 0;
 
+    videos.forEach(video => {
         video.addEventListener('canplay', function() {
-            showToast('success', '视频已加载完成', 'success');
+            videoLoadCount++;
+            // 只在所有视频加载完成时显示一次
+            if (videoLoadCount === videos.length) {
+                showToast('success', '视频已加载完成', 'success');
+            }
         });
 
         video.addEventListener('error', function() {
-            showToast('error', '视频加载失败', 'error');
+            videoErrorCount++;
+            if (videoErrorCount === 1) {
+                showToast('error', '部分视频加载失败', 'error');
+            }
         });
     });
 
@@ -579,42 +585,21 @@ document.addEventListener('DOMContentLoaded', function() {
             const wrapper = this.closest('.video-wrapper');
 
             // 添加视频信息显示
-            let infoDiv = wrapper.querySelector('.video-info');
-            if (!infoDiv) {
-                infoDiv = document.createElement('div');
-                infoDiv.className = 'video-info text-muted small mt-2';
-                wrapper.appendChild(infoDiv);
+            if (wrapper) {
+                let infoDiv = wrapper.querySelector('.video-info');
+                if (!infoDiv) {
+                    infoDiv = document.createElement('div');
+                    infoDiv.className = 'video-info text-muted small mt-2';
+                    wrapper.appendChild(infoDiv);
+                }
+                infoDiv.innerHTML = `<i class="fas fa-clock me-1"></i>时长: ${duration} | <i class="fas fa-expand me-1"></i>${this.videoWidth}×${this.videoHeight}`;
             }
-            infoDiv.innerHTML = `<i class="fas fa-clock me-1"></i>时长: ${duration} | <i class="fas fa-expand me-1"></i>${this.videoWidth}×${this.videoHeight}`;
         });
 
-        // 播放进度更新
-        video.addEventListener('timeupdate', function() {
-            // 可用于添加进度条更新
-        });
-
-        // 播放完成
+        // 播放完成 - 只显示一次
         video.addEventListener('ended', function() {
             showToast('info', '视频播放完成', 'info');
-        });
-
-        // 缓冲进度
-        video.addEventListener('progress', function() {
-            // 可用于显示缓冲进度
-        });
-
-        // 添加同步播放功能（可选）
-        video.addEventListener('play', function() {
-            syncVideoPlayback(this);
-        });
-
-        video.addEventListener('pause', function() {
-            syncVideoPlayback(this);
-        });
-
-        video.addEventListener('seeked', function() {
-            syncVideoPlayback(this);
-        });
+        }, { once: true });
     });
 });
 
@@ -674,9 +659,22 @@ function formatDuration(seconds) {
     transition: opacity 0.3s ease;
 }
 
+/* 浅色模式视频骨架屏 */
+body:not(.dark-mode) .video-skeleton {
+    background: linear-gradient(135deg, #e9ecef 0%, #dee2e6 100%);
+}
+
+body:not(.dark-mode) .video-skeleton:hover {
+    background: linear-gradient(135deg, #dee2e6 0%, #ced4da 100%);
+}
+
 .skeleton-content {
     text-align: center;
     color: var(--dark-text-primary);
+}
+
+body:not(.dark-mode) .skeleton-content {
+    color: var(--light-text-primary);
 }
 
 /* 视频播放图标动画 */

@@ -56,6 +56,13 @@ let reconnectAttempts = 0;
 const MAX_RECONNECT_ATTEMPTS = 3;
 let reconnectTimeout = null;
 
+// ===== 实时检测框渲染优化 =====
+// 保存最新的检测结果，用于在每帧上实时绘制
+let latestDetections = [];
+let detectionUpdateTime = 0;
+let renderAnimationId = null;
+const DETECTION_TIMEOUT = 2000; // 检测结果超时时间（ms），超过此时间不显示框
+
 // 页面加载完成后初始化
 document.addEventListener('DOMContentLoaded', function() {
     initializeCamera();
@@ -827,6 +834,13 @@ function handleCameraError(error) {
 function stopCamera() {
     isDetecting = false;
 
+    // 停止实时渲染循环
+    stopRealtimeRender();
+
+    // 清空检测结果
+    latestDetections = [];
+    detectionUpdateTime = 0;
+
     // 取消待处理的请求
     if (pendingRequest) {
         pendingRequest.abort();
@@ -912,6 +926,9 @@ function stopCamera() {
 function startDetectionLoop() {
     if (!isDetecting) return;
 
+    // 启动实时渲染循环（用于在每帧上绘制检测框）
+    startRealtimeRender();
+
     const now = Date.now();
 
     // 检查是否在退避期
@@ -977,6 +994,7 @@ function startDetectionLoop() {
 
 /**
  * 捕获帧并发送到后端进行检测
+ * 优化版本：使用实时叠加模式，检测框绑定到最新帧
  */
 async function captureAndDetect() {
     if (!videoElement || !canvasElement || !ctx) {
@@ -1016,14 +1034,6 @@ async function captureAndDetect() {
         const videoRect = videoElement.getBoundingClientRect();
         canvasElement.style.width = videoRect.width + 'px';
         canvasElement.style.height = videoRect.height + 'px';
-
-        // 绘制当前帧到显示canvas
-        ctx.drawImage(videoElement, 0, 0, canvasElement.width, canvasElement.height);
-
-        // 保存原始帧数据（用于后续绘制检测框）
-        const frameImageData = ctx.getImageData(0, 0, canvasElement.width, canvasElement.height);
-        const savedWidth = canvasElement.width;
-        const savedHeight = canvasElement.height;
 
         // 计算压缩后的尺寸（保持宽高比，最长边为MODEL_INPUT_SIZE）
         const scale = Math.min(MODEL_INPUT_SIZE / videoWidth, MODEL_INPUT_SIZE / videoHeight);
@@ -1121,19 +1131,10 @@ async function captureAndDetect() {
                 console.log(`检测完成: success=${result.success}, count=${result.count}, time=${inferenceTime}ms`);
 
                 if (result.success) {
-                    // 确保canvas尺寸正确
-                    if (canvasElement.width !== savedWidth || canvasElement.height !== savedHeight) {
-                        canvasElement.width = savedWidth;
-                        canvasElement.height = savedHeight;
-                    }
-
-                    // 恢复保存的帧图像
-                    ctx.putImageData(frameImageData, 0, 0);
-
-                    // 绘制检测框
-                    if (result.detections && result.detections.length > 0) {
-                        drawDetections(result.detections);
-                    }
+                    // ===== 优化：更新最新检测结果，不恢复旧帧 =====
+                    // 保存检测结果供实时渲染使用
+                    latestDetections = result.detections || [];
+                    detectionUpdateTime = Date.now();
 
                     // 更新统计信息
                     updateStatistics(result.count, currentFps, inferenceTime);
@@ -1181,6 +1182,50 @@ async function captureAndDetect() {
     } catch (error) {
         console.error('捕获帧失败:', error);
         isRequestInProgress = false;
+    }
+}
+
+/**
+ * 实时渲染循环 - 在每帧上绘制视频和检测框
+ * 这是解决检测框不准确的关键
+ */
+function startRealtimeRender() {
+    function render() {
+        if (!isDetecting || !videoElement || !canvasElement || !ctx) {
+            return;
+        }
+
+        // 检查视频是否就绪
+        if (videoElement.videoWidth === 0 || videoElement.videoHeight === 0) {
+            renderAnimationId = requestAnimationFrame(render);
+            return;
+        }
+
+        // 绘制当前视频帧
+        ctx.drawImage(videoElement, 0, 0, canvasElement.width, canvasElement.height);
+
+        // 检查检测结果是否过期
+        const timeSinceDetection = Date.now() - detectionUpdateTime;
+        if (timeSinceDetection < DETECTION_TIMEOUT && latestDetections.length > 0) {
+            // 在当前帧上绘制最新的检测框
+            drawDetections(latestDetections);
+        }
+
+        // 继续渲染循环
+        renderAnimationId = requestAnimationFrame(render);
+    }
+
+    // 启动渲染循环
+    render();
+}
+
+/**
+ * 停止实时渲染循环
+ */
+function stopRealtimeRender() {
+    if (renderAnimationId) {
+        cancelAnimationFrame(renderAnimationId);
+        renderAnimationId = null;
     }
 }
 
@@ -1305,7 +1350,7 @@ function drawDetections(detections) {
 
         // 绘制标签背景
         ctx.fillStyle = color;
-        ctx.fillRect(labelX - padding/2, labelY - textHeight/2, textWidth + padding, textHeight + 4);
+        ctx.fillRect(labelX - padding / 2, labelY - textHeight / 2, textWidth + padding, textHeight + 4);
 
         // 绘制标签文字
         ctx.fillStyle = '#FFFFFF';

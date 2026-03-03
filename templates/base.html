@@ -127,18 +127,28 @@
 
             toast.innerHTML = `
                 <i class="fas ${icon}"></i>
-                <span>${message}</span>
+                <span class="toast-message">${message}</span>
+                <button class="toast-close" onclick="this.parentElement.parentElement.remove()" title="关闭">
+                    <i class="fas fa-times"></i>
+                </button>
             `;
 
             container.appendChild(toast);
 
-            // 自动移除
-            setTimeout(() => {
-                toast.style.animation = 'slideOut 0.3s ease-out';
-                setTimeout(() => {
-                    document.body.removeChild(container);
-                }, 300);
-            }, 3000);
+            // 自动移除（缩短为2秒）
+            const autoRemoveTimer = setTimeout(() => {
+                if (container.parentElement) {
+                    toast.style.animation = 'slideOut 0.25s ease-out forwards';
+                    setTimeout(() => {
+                        container.remove();
+                    }, 250);
+                }
+            }, 2000);
+
+            // 点击关闭按钮时清除自动移除定时器
+            toast.querySelector('.toast-close').addEventListener('click', () => {
+                clearTimeout(autoRemoveTimer);
+            });
         }
 
         // 深色模式切换功能

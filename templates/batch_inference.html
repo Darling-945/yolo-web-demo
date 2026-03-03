@@ -287,21 +287,17 @@ document.addEventListener('DOMContentLoaded', function() {
         showToast('success', '批量处理完成！成功处理 {{ batch_result.summary.processed_files }}/{{ batch_result.summary.total_files }} 个文件', 'success');
     {% endif %}
 
-    // 添加结果卡片动画
-    const resultCards = document.querySelectorAll('.result-item');
-    resultCards.forEach((card, index) => {
-        card.style.opacity = '0';
-        card.style.transform = 'translateY(30px)';
-
-        setTimeout(() => {
-            card.style.transition = 'all 0.6s ease';
-            card.style.opacity = '1';
-            card.style.transform = 'translateY(0)';
-        }, 100 + index * 100);
+    // 为结果项设置动画索引（CSS动画使用）
+    const resultWrappers = document.querySelectorAll('.result-item-wrapper');
+    resultWrappers.forEach((wrapper, index) => {
+        wrapper.style.setProperty('--index', index);
     });
 
     // 数字统计动画
     animateCounters();
+
+    // 懒加载图片初始化
+    initLazyLoading();
 });
 
 // 数字计数动画
@@ -601,8 +597,7 @@ function filterResults(filterType) {
 }
 
 // 图片懒加载优化
-document.addEventListener('DOMContentLoaded', function() {
-    // 为懒加载图片添加加载动画
+function initLazyLoading() {
     const lazyImages = document.querySelectorAll('.lazy-result-image');
 
     if ('IntersectionObserver' in window) {
@@ -626,8 +621,11 @@ document.addEventListener('DOMContentLoaded', function() {
         });
 
         lazyImages.forEach(img => imageObserver.observe(img));
+    } else {
+        // 回退：直接显示所有图片
+        lazyImages.forEach(img => img.classList.add('loaded'));
     }
-});
+}
 </script>
 
 <style>
@@ -641,9 +639,11 @@ document.addEventListener('DOMContentLoaded', function() {
     box-shadow: 0 15px 30px rgba(33, 150, 243, 0.2) !important;
 }
 
+/* 结果项入场动画 - 使用CSS而非JS */
 .result-item-wrapper {
     opacity: 0;
     animation: fadeInUp 0.5s ease forwards;
+    animation-delay: calc(var(--index, 0) * 0.1s);
 }
 
 @keyframes fadeInUp {

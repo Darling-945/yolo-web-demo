@@ -36,9 +36,96 @@
     --dark-text-secondary: #8892a0;
     --dark-border-color: rgba(0, 212, 255, 0.2);
     --dark-gradient: linear-gradient(135deg, #0a0a0f 0%, #12121a 50%, #0d1117 100%);
+
+    /* 浅色模式变量 */
+    --light-bg-primary: #f8f9fa;
+    --light-bg-secondary: #ffffff;
+    --light-bg-card: rgba(255, 255, 255, 0.95);
+    --light-text-primary: #212529;
+    --light-text-secondary: #6c757d;
+    --light-border-color: rgba(0, 0, 0, 0.1);
+    --light-gradient: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 50%, #dee2e6 100%);
 }
 
-/* 深色模式样式 - 默认启用科技风格 */
+/* 浅色模式样式 - 默认 */
+body {
+    background: var(--light-gradient);
+    color: var(--light-text-primary);
+}
+
+body .navbar {
+    background: rgba(255, 255, 255, 0.95) !important;
+    border-bottom: 1px solid var(--light-border-color);
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+}
+
+body .main-container {
+    background: var(--light-bg-card);
+    border: 1px solid var(--light-border-color);
+}
+
+body .card {
+    background: var(--light-bg-card);
+    border: 1px solid var(--light-border-color);
+}
+
+body .feature-item {
+    background: rgba(248, 249, 250, 0.9);
+    border: 1px solid var(--light-border-color);
+    color: var(--light-text-primary);
+}
+
+body .feature-item p {
+    color: var(--light-text-secondary);
+}
+
+body .upload-area {
+    background: rgba(248, 249, 250, 0.9);
+    border: 3px dashed rgba(0, 212, 255, 0.4);
+    color: var(--light-text-primary);
+}
+
+body .form-control,
+body .form-select {
+    background: #ffffff;
+    border: 1px solid var(--light-border-color);
+    color: var(--light-text-primary);
+}
+
+body .form-control:focus,
+body .form-select:focus {
+    background: #ffffff;
+    border-color: var(--primary-color);
+    color: var(--light-text-primary);
+}
+
+body .text-muted {
+    color: var(--light-text-secondary) !important;
+}
+
+body .info-card,
+body .summary-section,
+body .details-section {
+    background: rgba(255, 255, 255, 0.95);
+    border: 1px solid var(--light-border-color);
+    color: var(--light-text-primary);
+}
+
+body .statistics-card {
+    background: var(--light-bg-card);
+    border: 1px solid var(--light-border-color);
+}
+
+body .table {
+    color: var(--light-text-primary);
+}
+
+body .table th {
+    background: rgba(0, 212, 255, 0.1);
+    border-color: var(--light-border-color);
+}
+
+/* 深色模式样式 */
 body.dark-mode {
     background: var(--dark-gradient);
     color: var(--dark-text-primary);
@@ -263,6 +350,36 @@ body.dark-mode [class*="text-primary"] .far {
     filter: drop-shadow(0 0 5px rgba(0, 212, 255, 0.5));
 }
 
+/* 浅色模式主题切换按钮 */
+body:not(.dark-mode) .theme-toggle {
+    background: rgba(0, 100, 150, 0.1);
+    border-color: var(--primary-color);
+    color: var(--primary-color);
+}
+
+body:not(.dark-mode) .theme-toggle:hover {
+    background: rgba(0, 100, 150, 0.15);
+    box-shadow: 0 0 15px rgba(0, 100, 150, 0.3);
+}
+
+body:not(.dark-mode) .theme-toggle i {
+    filter: none;
+}
+
+/* 浅色模式导航栏 */
+body:not(.dark-mode) .navbar-brand,
+body:not(.dark-mode) .nav-link {
+    color: var(--light-text-primary) !important;
+}
+
+body:not(.dark-mode) .nav-link:hover {
+    color: var(--primary-color) !important;
+}
+
+body:not(.dark-mode) .nav-link.active {
+    color: var(--primary-color) !important;
+}
+
 /* 深色模式下的Toast通知样式 */
 body.dark-mode .custom-toast {
     background: rgba(26, 26, 46, 0.95);
@@ -380,18 +497,17 @@ body.dark-mode .badge.bg-secondary {
     color: #c5c8ca !important;
 }
 
+/* 基础body样式 */
 body {
-    background: var(--dark-gradient);
     min-height: 100vh;
     font-family: 'Inter', 'Rajdhani', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-    color: var(--dark-text-primary);
     line-height: 1.6;
     transition: background 0.3s ease, color 0.3s ease;
     position: relative;
     overflow-x: hidden;
 }
 
-/* 科技感背景网格效果 */
+/* 科技感背景网格效果 - 浅色模式默认 */
 body::before {
     content: '';
     position: fixed;
@@ -400,12 +516,19 @@ body::before {
     right: 0;
     bottom: 0;
     background-image:
-        linear-gradient(rgba(0, 212, 255, 0.03) 1px, transparent 1px),
-        linear-gradient(90deg, rgba(0, 212, 255, 0.03) 1px, transparent 1px);
+        linear-gradient(rgba(0, 100, 150, 0.05) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(0, 100, 150, 0.05) 1px, transparent 1px);
     background-size: 50px 50px;
     pointer-events: none;
     z-index: -1;
     animation: gridMove 20s linear infinite;
+}
+
+/* 深色模式网格效果 */
+body.dark-mode::before {
+    background-image:
+        linear-gradient(rgba(0, 212, 255, 0.03) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(0, 212, 255, 0.03) 1px, transparent 1px);
 }
 
 @keyframes gridMove {
@@ -477,6 +600,67 @@ body::before {
 
 .custom-toast.info i {
     color: var(--neon-cyan);
+}
+
+/* Toast 消息内容 */
+.toast-message {
+    flex: 1;
+    font-size: 0.95rem;
+    line-height: 1.4;
+}
+
+/* Toast 关闭按钮 */
+.toast-close {
+    background: transparent;
+    border: none;
+    color: inherit;
+    cursor: pointer;
+    padding: 4px 8px;
+    margin-left: 8px;
+    border-radius: 6px;
+    opacity: 0.6;
+    transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.toast-close:hover {
+    opacity: 1;
+    background: rgba(255, 255, 255, 0.1);
+}
+
+.toast-close:active {
+    transform: scale(0.9);
+}
+
+.toast-close i {
+    font-size: 0.85rem;
+    filter: none !important;
+}
+
+/* 浅色模式 Toast 样式 */
+body:not(.dark-mode) .custom-toast {
+    background: rgba(255, 255, 255, 0.98);
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1), 0 2px 8px rgba(0, 0, 0, 0.05);
+    border: 1px solid rgba(0, 0, 0, 0.1);
+    color: var(--light-text-primary);
+}
+
+body:not(.dark-mode) .custom-toast.success {
+    box-shadow: 0 4px 20px rgba(40, 167, 69, 0.15), 0 2px 8px rgba(0, 0, 0, 0.05);
+}
+
+body:not(.dark-mode) .custom-toast.error {
+    box-shadow: 0 4px 20px rgba(220, 53, 69, 0.15), 0 2px 8px rgba(0, 0, 0, 0.05);
+}
+
+body:not(.dark-mode) .custom-toast.warning {
+    box-shadow: 0 4px 20px rgba(255, 193, 7, 0.15), 0 2px 8px rgba(0, 0, 0, 0.05);
+}
+
+body:not(.dark-mode) .toast-close:hover {
+    background: rgba(0, 0, 0, 0.08);
 }
 
 @keyframes slideIn {

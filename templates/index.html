@@ -443,98 +443,96 @@ document.addEventListener('DOMContentLoaded', function() {
     const uploadForm = document.getElementById('uploadForm');
     if (uploadForm) {
         uploadForm.addEventListener('submit', async function(e) {
-    // 验证是否有文件
-    const fileInput = document.getElementById('fileInput');
-    if (!fileInput || !fileInput.files || !fileInput.files[0]) {
-        showToast('error', '请先选择要上传的文件', 'error');
-        e.preventDefault();
-        return;
+            // 验证是否有文件
+            const fileInput = document.getElementById('fileInput');
+            if (!fileInput || !fileInput.files || !fileInput.files[0]) {
+                showToast('error', '请先选择要上传的文件', 'error');
+                e.preventDefault();
+                return;
+            }
+
+            // 检查是否启用了异步模式
+            const asyncModeCheckbox = document.getElementById('asyncMode');
+            const asyncMode = asyncModeCheckbox && asyncModeCheckbox.checked;
+
+            if (asyncMode) {
+                // 异步模式 - 使用API提交
+                e.preventDefault();
+                await submitAsyncInference();
+            } else {
+                // 同步模式 - 正常提交
+                console.log('表单提交开始');
+
+                const uploadBtn = document.getElementById('uploadBtn');
+                const uploadBtnText = document.getElementById('uploadBtnText');
+                const uploadSpinner = document.getElementById('uploadSpinner');
+                const progressContainer = document.getElementById('progressContainer');
+                const progressBar = document.getElementById('progressBar');
+                const progressText = document.getElementById('progressText');
+
+                // 显示加载状态
+                if (uploadBtn) uploadBtn.disabled = true;
+                if (uploadBtnText) uploadBtnText.style.display = 'none';
+                if (uploadSpinner) uploadSpinner.style.display = 'inline-block';
+                if (progressContainer) progressContainer.style.display = 'block';
+
+                // 添加波纹效果
+                createRipple(e);
+
+                // 显示Toast通知
+                showToast('info', '正在上传图片并进行检测...', 'info');
+
+                // 获取配置参数
+                const modelSelect = document.getElementById('modelSelect');
+                const confidenceInput = document.getElementById('confidenceInput');
+                const iouInput = document.getElementById('iouInput');
+
+                const model = modelSelect ? modelSelect.value : 'yolo11n.pt';
+                const confidence = confidenceInput ? confidenceInput.value : '0.25';
+                const iou = iouInput ? iouInput.value : '0.45';
+
+                // 创建隐藏输入字段 - 先清理旧的
+                const existingHidden = uploadForm.querySelectorAll('input[type="hidden"]');
+                existingHidden.forEach(input => input.remove());
+
+                // 创建新的隐藏输入字段
+                const modelHidden = document.createElement('input');
+                modelHidden.type = 'hidden';
+                modelHidden.name = 'model';
+                modelHidden.value = model;
+                uploadForm.appendChild(modelHidden);
+
+                const confidenceHidden = document.createElement('input');
+                confidenceHidden.type = 'hidden';
+                confidenceHidden.name = 'confidence';
+                confidenceHidden.value = confidence;
+                uploadForm.appendChild(confidenceHidden);
+
+                const iouHidden = document.createElement('input');
+                iouHidden.type = 'hidden';
+                iouHidden.name = 'iou';
+                iouHidden.value = iou;
+                uploadForm.appendChild(iouHidden);
+
+                console.log('隐藏字段已添加，准备提交表单');
+
+                // 保存表单引用
+                const formRef = uploadForm;
+
+                // 使用传统表单提交方式
+                setTimeout(function() {
+                    formRef.submit();
+                }, 100);
+
+                // 设置超时，更新进度条显示
+                setTimeout(function() {
+                    if (progressBar) progressBar.style.width = '100%';
+                    if (progressText) progressText.textContent = '处理中...';
+                }, 10000);
+            }
+        });
     }
-
-    // 检查是否启用了异步模式
-    const asyncModeCheckbox = document.getElementById('asyncMode');
-    const asyncMode = asyncModeCheckbox && asyncModeCheckbox.checked;
-
-    if (asyncMode) {
-        // 异步模式 - 使用API提交
-        e.preventDefault();
-        await submitAsyncInference();
-    } else {
-        // 同步模式 - 正常提交
-        console.log('表单提交开始');
-
-        const uploadBtn = document.getElementById('uploadBtn');
-        const uploadBtnText = document.getElementById('uploadBtnText');
-        const uploadSpinner = document.getElementById('uploadSpinner');
-        const progressContainer = document.getElementById('progressContainer');
-        const progressBar = document.getElementById('progressBar');
-        const progressText = document.getElementById('progressText');
-
-        // 显示加载状态
-        if (uploadBtn) uploadBtn.disabled = true;
-        if (uploadBtnText) uploadBtnText.style.display = 'none';
-        if (uploadSpinner) uploadSpinner.style.display = 'inline-block';
-        if (progressContainer) progressContainer.style.display = 'block';
-
-        // 添加波纹效果
-        createRipple(e);
-
-        // 显示Toast通知
-        showToast('info', '正在上传图片并进行检测...', 'info');
-
-        // 获取配置参数
-        const modelSelect = document.getElementById('modelSelect');
-        const confidenceInput = document.getElementById('confidenceInput');
-        const iouInput = document.getElementById('iouInput');
-
-        const model = modelSelect ? modelSelect.value : 'yolo11n.pt';
-        const confidence = confidenceInput ? confidenceInput.value : '0.25';
-        const iou = iouInput ? iouInput.value : '0.45';
-
-        // 创建隐藏输入字段 - 先清理旧的
-        const existingHidden = this.querySelectorAll('input[type="hidden"]');
-        existingHidden.forEach(input => input.remove());
-
-        // 创建新的隐藏输入字段
-        const modelHidden = document.createElement('input');
-        modelHidden.type = 'hidden';
-        modelHidden.name = 'model';
-        modelHidden.value = model;
-        this.appendChild(modelHidden);
-
-        const confidenceHidden = document.createElement('input');
-        confidenceHidden.type = 'hidden';
-        confidenceHidden.name = 'confidence';
-        confidenceHidden.value = confidence;
-    this.appendChild(confidenceHidden);
-
-    const iouHidden = document.createElement('input');
-    iouHidden.type = 'hidden';
-    iouHidden.name = 'iou';
-    iouHidden.value = iou;
-    this.appendChild(iouHidden);
-
-    console.log('隐藏字段已添加，准备提交表单');
-
-    // 创建FormData对象
-    const formData = new FormData(this);
-    console.log('表单验证完成，准备提交');
-
-    // 使用传统表单提交方式
-    // 移除preventDefault以允许正常表单提交
-    setTimeout(() => {
-        this.submit(); // 使用原生表单提交
-    }, 100);
-
-    // 设置超时，更新进度条显示
-    setTimeout(() => {
-        if (progressBar) progressBar.style.width = '100%';
-        if (progressText) progressText.textContent = '处理中...';
-    }, 10000); // 10秒后更新显示
-        }  // 关闭 else 块
-        }); // 关闭 async function
-    }  // 关闭 if (uploadForm)
-}); // 关闭 DOMContentLoaded
+});
 
 
 // 创建波纹效果
@@ -564,94 +562,103 @@ if (uploadBtn) {
     uploadBtn.addEventListener('click', createRipple);
 }
 
-// 异步推理提交
+// 异步推理提交 - 支持多文件批量处理
 async function submitAsyncInference() {
     const uploadBtn = document.getElementById('uploadBtn');
     const uploadBtnText = document.getElementById('uploadBtnText');
     const uploadSpinner = document.getElementById('uploadSpinner');
     const fileInput = document.getElementById('fileInput');
 
+    // 检查是否有选中的文件（来自 multi-file-upload.js）
+    const filesToProcess = (typeof selectedFilesInfo !== 'undefined' && selectedFilesInfo.length > 0)
+        ? selectedFilesInfo
+        : (fileInput && fileInput.files && fileInput.files.length > 0 ? Array.from(fileInput.files).map((f, i) => ({file: f, name: f.name, index: i})) : []);
+
+    if (filesToProcess.length === 0) {
+        showToast('error', '请先选择要上传的文件', 'error');
+        return;
+    }
+
     // 禁用按钮
     if (uploadBtn) uploadBtn.disabled = true;
     if (uploadBtnText) uploadBtnText.style.display = 'none';
     if (uploadSpinner) uploadSpinner.style.display = 'inline-block';
 
-    showToast('info', '正在上传文件并启动异步推理任务...', 'info');
+    const fileCount = filesToProcess.length;
+    showToast('info', `正在创建 ${fileCount} 个异步推理任务...`, 'info');
+
+    // 获取参数
+    const modelSelect = document.getElementById('modelSelect');
+    const confidenceInput = document.getElementById('confidenceInput');
+    const iouInput = document.getElementById('iouInput');
+
+    const model = modelSelect ? modelSelect.value : 'yolo11n.pt';
+    const confidence = confidenceInput ? confidenceInput.value : '0.25';
+    const iou = iouInput ? iouInput.value : '0.45';
+
+    const taskIds = [];
+    let successCount = 0;
+    let failCount = 0;
 
     try {
-        // 准备FormData
-        const formData = new FormData();
-        formData.append('file', fileInput.files[0]);
+        for (const fileInfo of filesToProcess) {
+            const formData = new FormData();
+            formData.append('file', fileInfo.file);
+            formData.append('model', model);
+            formData.append('confidence', confidence);
+            formData.append('iou', iou);
 
-        // 获取参数
-        const modelSelect = document.getElementById('modelSelect');
-        const confidenceInput = document.getElementById('confidenceInput');
-        const iouInput = document.getElementById('iouInput');
+            try {
+                const response = await fetch('/infer/async', {
+                    method: 'POST',
+                    body: formData
+                });
 
-        formData.append('model', modelSelect ? modelSelect.value : 'yolo11n.pt');
-        formData.append('confidence', confidenceInput ? confidenceInput.value : '0.25');
-        formData.append('iou', iouInput ? iouInput.value : '0.45');
+                const result = await response.json();
+                if (result.success) {
+                    taskIds.push(result.task_id);
+                    successCount++;
+                } else {
+                    console.error(`Task creation failed for ${fileInfo.name}:`, result.error);
+                    failCount++;
+                }
+            } catch (err) {
+                console.error(`Error creating task for ${fileInfo.name}:`, err);
+                failCount++;
+            }
+        }
 
-        // 发送异步推理请求
-        const response = await fetch('/infer/async', {
-            method: 'POST',
-            body: formData
-        });
-
-        const result = await response.json();
-
-        if (result.success) {
-            showToast('success', '任务已创建，正在跳转到等待页面...', 'success');
-            // 跳转到等待页面
-            window.location.href = `/infer/waiting/${result.task_id}`;
+        if (taskIds.length > 0) {
+            const msg = fileCount > 1
+                ? `成功创建 ${successCount} 个任务${failCount > 0 ? `，${failCount} 个失败` : ''}，正在跳转...`
+                : '任务已创建，正在跳转到等待页面...';
+            showToast('success', msg, 'success');
+            // 跳转到第一个任务的等待页面
+            window.location.href = `/infer/waiting/${taskIds[0]}`;
         } else {
-            showToast('error', result.error || '创建任务失败', 'error');
-            // 重置按钮状态
-            if (uploadBtn) uploadBtn.disabled = false;
-            if (uploadBtnText) uploadBtnText.style.display = 'inline';
-            if (uploadSpinner) uploadSpinner.style.display = 'none';
+            showToast('error', '所有任务创建失败，请重试', 'error');
+            resetAsyncUploadState();
         }
 
     } catch (error) {
         console.error('Async inference error:', error);
         showToast('error', '提交失败，请重试', 'error');
-        // 重置按钮状态
-        if (uploadBtn) uploadBtn.disabled = false;
-        if (uploadBtnText) uploadBtnText.style.display = 'inline';
-        if (uploadSpinner) uploadSpinner.style.display = 'none';
+        resetAsyncUploadState();
     }
 }
 
-// 处理拖拽文件
-function handleDrop(e) {
-    e.preventDefault();
-    e.stopPropagation();
+// 重置异步上传状态
+function resetAsyncUploadState() {
+    const uploadBtn = document.getElementById('uploadBtn');
+    const uploadBtnText = document.getElementById('uploadBtnText');
+    const uploadSpinner = document.getElementById('uploadSpinner');
 
-    const dt = e.dataTransfer;
-    const files = dt.files;
-
-    // 验证拖拽的文件
-    if (files.length === 0) {
-        showToast('error', '没有检测到文件', 'error');
-        return;
-    }
-
-    const file = files[0];
-
-    // 处理文件
-    if (handleFile(file)) {
-        // 设置文件输入框的值（保留用于表单提交）
-        const fileInput = document.getElementById('fileInput');
-
-        // 创建新的DataTransfer对象来设置文件
-        const dataTransfer = new DataTransfer();
-        dataTransfer.items.add(file);
-        fileInput.files = dataTransfer.files;
-
-        // 显示成功提示
-        showToast('success', `已添加文件: ${file.name}`, 'success');
-    }
+    if (uploadBtn) uploadBtn.disabled = false;
+    if (uploadBtnText) uploadBtnText.style.display = 'inline';
+    if (uploadSpinner) uploadSpinner.style.display = 'none';
 }
+
+// 注意：handleDrop 函数已移至 multi-file-upload.js 以支持多文件处理
 
 // 键盘快捷键支持
 document.addEventListener('keydown', function(e) {
@@ -676,91 +683,8 @@ document.addEventListener('keydown', function(e) {
     }
 });
 
-// 文件处理函数（用于拖拽上传）
-function handleFile(file) {
-    console.log('开始处理文件:', file ? file.name : 'null');
-
-    if (!file) {
-        console.error('文件为空');
-        showToast('error', '没有选择文件', 'error');
-        return false;
-    }
-
-    console.log('文件信息:', {
-        name: file.name,
-        type: file.type,
-        size: file.size
-    });
-
-    // 验证文件类型 - 支持图片和视频
-    const imageTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp', 'image/bmp', 'image/gif'];
-    const videoTypes = ['video/mp4', 'video/avi', 'video/quicktime', 'video/x-msvideo', 'video/x-matroska'];
-    const imageExtensions = ['.jpg', '.jpeg', '.png', '.webp', '.bmp', '.gif', '.tiff', '.tif'];
-    const videoExtensions = ['.mp4', '.avi', '.mov', '.mkv', '.wmv', '.flv', '.webm', '.m4v'];
-
-    const allTypes = [...imageTypes, ...videoTypes];
-    const allExtensions = [...imageExtensions, ...videoExtensions];
-    const fileExtension = file.name.toLowerCase().substring(file.name.lastIndexOf('.'));
-
-    if (!allTypes.includes(file.type) && !allExtensions.includes(fileExtension)) {
-        console.error('不支持的文件类型:', file.type, '扩展名:', fileExtension);
-        showToast('error', `不支持的文件类型 (${file.type || fileExtension})，请选择图片或视频文件`, 'error');
-        return false;
-    }
-
-    // 验证文件大小 - 根据文件类型设置不同限制
-    const isVideo = videoTypes.includes(file.type) || videoExtensions.includes(fileExtension);
-    const maxSize = isVideo ? 500 * 1024 * 1024 : 50 * 1024 * 1024; // 视频500MB，图片50MB
-    if (file.size > maxSize) {
-        console.error('文件过大:', file.size, '最大允许:', maxSize);
-        const maxSizeDisplay = isVideo ? '500MB' : '50MB';
-        const fileSizeDisplay = isVideo ? (file.size / 1024 / 1024 / 1024).toFixed(2) + 'GB' : (file.size / 1024 / 1024).toFixed(2) + 'MB';
-        showToast('error', `文件大小不能超过 ${maxSizeDisplay}，当前文件大小: ${fileSizeDisplay}`, 'error');
-        return false;
-    }
-
-    // 启用上传按钮
-    const uploadBtn = document.getElementById('uploadBtn');
-    if (uploadBtn) {
-        uploadBtn.disabled = false;
-        console.log('上传按钮已启用');
-    } else {
-        console.error('找不到上传按钮');
-    }
-
-    // 显示预览
-    const reader = new FileReader();
-    reader.onload = function(e) {
-        try {
-            const previewImg = document.getElementById('previewImage');
-            const previewContainer = document.getElementById('previewContainer');
-
-            if (previewImg && previewContainer) {
-                previewImg.src = e.target.result;
-                previewContainer.style.display = 'block';
-                previewContainer.classList.add('fade-in');
-                console.log('图片预览已显示');
-                showToast('success', `图片已成功加载: ${file.name}`, 'success');
-            } else {
-                console.error('找不到预览元素');
-                showToast('error', '预览显示失败', 'error');
-            }
-        } catch (error) {
-            console.error('显示预览时出错:', error);
-            showToast('error', '预览显示失败', 'error');
-        }
-    };
-
-    reader.onerror = function(error) {
-        console.error('读取文件失败:', error);
-        showToast('error', '文件读取失败', 'error');
-    };
-
-    reader.readAsDataURL(file);
-    console.log('开始读取文件数据');
-
-    return true;
-}
+// 注意：handleFile 函数已移至 multi-file-upload.js 中的 processSingleFile
+// 文件处理统一由 multi-file-upload.js 管理，支持多文件预览
 
 // 页面加载完成后添加增强功能
 document.addEventListener('DOMContentLoaded', function() {
@@ -876,32 +800,8 @@ document.addEventListener('DOMContentLoaded', function() {
             console.error('❌ 找不到上传区域');
         }
 
-        // 文件输入变化事件
-        fileInput.addEventListener('change', function(e) {
-            console.log('文件输入发生变化');
-            const file = e.target.files[0];
-            if (file) {
-                console.log('✅ 文件选择成功:', file.name);
-                const success = handleFile(file);
-                if (!success) {
-                    // 如果文件处理失败，清空文件输入
-                    e.target.value = '';
-                    console.log('文件处理失败，已清空文件输入');
-                }
-            } else {
-                console.log('没有选择文件');
-                // 禁用上传按钮
-                const uploadBtn = document.getElementById('uploadBtn');
-                if (uploadBtn) {
-                    uploadBtn.disabled = true;
-                }
-                // 隐藏预览
-                const previewContainer = document.getElementById('previewContainer');
-                if (previewContainer) {
-                    previewContainer.style.display = 'none';
-                }
-            }
-        });
+        // 注意：文件输入变化事件由 multi-file-upload.js 中的 handleMultipleFileSelect 处理
+        // 这里不需要重复添加 change 事件监听器
 
         console.log('✅ 文件选择功能初始化完成');
     }
@@ -911,18 +811,22 @@ document.addEventListener('DOMContentLoaded', function() {
 
 // 测试函数已移除 - 使用原生HTML label标签实现
 
-// 初始化拖拽功能
+// 初始化拖拽高亮效果（拖拽处理由 multi-file-upload.js 负责）
 function initDragAndDrop() {
     const uploadArea = document.getElementById('uploadArea');
-    const fileInput = document.getElementById('fileInput');
 
-    if (!uploadArea || !fileInput) {
-        console.error('Upload area or file input not found');
+    if (!uploadArea) {
+        console.error('Upload area not found');
         return;
     }
 
-    ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
-        uploadArea.addEventListener(eventName, preventDefaults, false);
+    // 仅添加高亮效果，其他拖拽事件由 multi-file-upload.js 处理
+    ['dragenter', 'dragover'].forEach(eventName => {
+        uploadArea.addEventListener(eventName, highlight, false);
+    });
+
+    ['dragleave', 'drop'].forEach(eventName => {
+        uploadArea.addEventListener(eventName, unhighlight, false);
     });
 
     // 防止页面级别的拖拽事件
@@ -934,21 +838,7 @@ function initDragAndDrop() {
         e.preventDefault();
     });
 
-    ['dragenter', 'dragover'].forEach(eventName => {
-        uploadArea.addEventListener(eventName, highlight, false);
-    });
-
-    ['dragleave', 'drop'].forEach(eventName => {
-        uploadArea.addEventListener(eventName, unhighlight, false);
-    });
-
-    uploadArea.addEventListener('drop', handleDrop, false);
-    console.log('拖拽功能初始化完成');
-}
-
-function preventDefaults(e) {
-    e.preventDefault();
-    e.stopPropagation();
+    console.log('拖拽高亮功能初始化完成');
 }
 
 function highlight(e) {

@@ -512,26 +512,33 @@ document.addEventListener('keydown', function(e) {
     }
 
     // Ctrl+S 保存结果
+    {% if output_image %}
     if ((e.ctrlKey || e.metaKey) && e.key === 's') {
         e.preventDefault();
         downloadImage('{{ url_for('static', filename=normalize_path(output_image)) }}');
     }
+    {% endif %}
 
     // F 全屏查看第一张图片
+    {% if output_image %}
     if (e.key === 'f' || e.key === 'F') {
         viewFullscreen('{{ url_for('static', filename=normalize_path(output_image)) }}');
     }
+    {% endif %}
 });
 
 // 添加图片悬浮效果
 document.querySelectorAll('.image-container').forEach(container => {
-    container.addEventListener('mouseenter', function() {
-        this.querySelector('.image-overlay').style.opacity = '1';
-    });
+    const overlay = container.querySelector('.image-overlay');
+    if (overlay) {
+        container.addEventListener('mouseenter', function() {
+            overlay.style.opacity = '1';
+        });
 
-    container.addEventListener('mouseleave', function() {
-        this.querySelector('.image-overlay').style.opacity = '0';
-    });
+        container.addEventListener('mouseleave', function() {
+            overlay.style.opacity = '0';
+        });
+    }
 });
 </script>
 
