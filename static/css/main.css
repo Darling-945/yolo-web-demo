@@ -1,7 +1,7 @@
 /* YOLO Detection - Tech/Futuristic Custom Styles */
 
 :root {
-    /* 科技感主色调 - 霓虹蓝/青色/紫色 */
+    /* 深色模式主色调 - 霓虹色（用于深色背景） */
     --primary-color: #00d4ff;
     --primary-dark: #0099cc;
     --primary-light: #66e5ff;
@@ -41,10 +41,19 @@
     --light-bg-primary: #f8f9fa;
     --light-bg-secondary: #ffffff;
     --light-bg-card: rgba(255, 255, 255, 0.95);
-    --light-text-primary: #212529;
-    --light-text-secondary: #6c757d;
-    --light-border-color: rgba(0, 0, 0, 0.1);
+    --light-text-primary: #1a1a2e;
+    --light-text-secondary: #495057;
+    --light-border-color: rgba(0, 0, 0, 0.12);
     --light-gradient: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 50%, #dee2e6 100%);
+
+    /* 浅色模式专用颜色 - 高对比度 */
+    --light-primary: #0077b6;
+    --light-primary-light: #00a8e8;
+    --light-accent: #6c5ce7;
+    --light-success: #00b894;
+    --light-info: #0984e3;
+    --light-warning: #fdcb6e;
+    --light-danger: #d63031;
 }
 
 /* 浅色模式样式 - 默认 */
@@ -53,20 +62,58 @@ body {
     color: var(--light-text-primary);
 }
 
+/* 浅色模式 - 覆盖霓虹色为高对比度颜色 */
+body {
+    --neon-cyan: #0077b6;
+    --neon-purple: #6c5ce7;
+    --neon-blue: #0984e3;
+    --success-color: #00b894;
+    --info-color: #0984e3;
+    --warning-color: #e17055;
+    --danger-color: #d63031;
+    --primary-color: #0077b6;
+}
+
 body .navbar {
     background: rgba(255, 255, 255, 0.95) !important;
     border-bottom: 1px solid var(--light-border-color);
     box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
 }
 
+body .navbar-brand,
+body .nav-link {
+    color: var(--light-text-primary) !important;
+}
+
+body .nav-link:hover {
+    color: #0077b6 !important;
+}
+
+body .nav-link.active {
+    color: #0077b6 !important;
+}
+
 body .main-container {
     background: var(--light-bg-card);
     border: 1px solid var(--light-border-color);
+    color: var(--light-text-primary);
 }
 
 body .card {
     background: var(--light-bg-card);
     border: 1px solid var(--light-border-color);
+    color: var(--light-text-primary);
+}
+
+body .card-header {
+    background: rgba(0, 0, 0, 0.02);
+    border-bottom: 1px solid var(--light-border-color);
+    color: var(--light-text-primary);
+}
+
+body .card-title,
+body .card-text {
+    color: var(--light-text-primary);
 }
 
 body .feature-item {
@@ -81,21 +128,31 @@ body .feature-item p {
 
 body .upload-area {
     background: rgba(248, 249, 250, 0.9);
-    border: 3px dashed rgba(0, 212, 255, 0.4);
+    border: 3px dashed rgba(0, 119, 182, 0.4);
     color: var(--light-text-primary);
+}
+
+body .upload-area.dragover {
+    border-color: var(--light-primary);
+    background: rgba(0, 119, 182, 0.08);
 }
 
 body .form-control,
 body .form-select {
     background: #ffffff;
-    border: 1px solid var(--light-border-color);
+    border: 1px solid #ced4da;
     color: var(--light-text-primary);
 }
 
 body .form-control:focus,
 body .form-select:focus {
     background: #ffffff;
-    border-color: var(--primary-color);
+    border-color: var(--light-primary);
+    color: var(--light-text-primary);
+    box-shadow: 0 0 0 0.2rem rgba(0, 119, 182, 0.25);
+}
+
+body .form-check-label {
     color: var(--light-text-primary);
 }
 
@@ -114,6 +171,7 @@ body .details-section {
 body .statistics-card {
     background: var(--light-bg-card);
     border: 1px solid var(--light-border-color);
+    color: var(--light-text-primary);
 }
 
 body .table {
@@ -121,14 +179,554 @@ body .table {
 }
 
 body .table th {
-    background: rgba(0, 212, 255, 0.1);
+    background: rgba(0, 119, 182, 0.08);
     border-color: var(--light-border-color);
+    color: var(--light-text-primary);
+}
+
+body .table td {
+    border-color: var(--light-border-color);
+    color: var(--light-text-primary);
+}
+
+body .table tbody tr:hover {
+    background: rgba(0, 0, 0, 0.02);
+}
+
+/* 浅色模式 - 标题和文本 */
+body h1, body h2, body h3, body h4, body h5, body h6 {
+    color: var(--light-text-primary);
+}
+
+body .display-4,
+body .lead {
+    color: var(--light-text-primary);
+}
+
+body .alert {
+    color: var(--light-text-primary);
+}
+
+body .alert-info {
+    background: rgba(9, 132, 227, 0.12);
+    border-color: rgba(9, 132, 227, 0.25);
+    color: #064273;
+}
+
+body .alert-success {
+    background: rgba(0, 184, 148, 0.12);
+    border-color: rgba(0, 184, 148, 0.25);
+    color: #006d5b;
+}
+
+body .alert-warning {
+    background: rgba(225, 112, 85, 0.15);
+    border-color: rgba(225, 112, 85, 0.3);
+    color: #a04030;
+}
+
+body .alert-danger {
+    background: rgba(214, 48, 49, 0.12);
+    border-color: rgba(214, 48, 49, 0.25);
+    color: #8e2424;
+}
+
+/* 浅色模式 - 按钮 */
+body .btn-primary {
+    background: linear-gradient(135deg, #0077b6 0%, #005f8f 100%);
+    border-color: #005f8f;
+    color: white;
+}
+
+body .btn-outline-primary {
+    color: #0077b6;
+    border-color: #0077b6;
+}
+
+body .btn-outline-primary:hover {
+    background: #0077b6;
+    border-color: #0077b6;
+    color: white;
+}
+
+body .btn-outline-secondary {
+    color: var(--light-text-secondary);
+    border-color: #ced4da;
+}
+
+body .btn-outline-secondary:hover {
+    background: #e9ecef;
+    border-color: #adb5bd;
+    color: var(--light-text-primary);
+}
+
+/* 浅色模式 - Badge */
+body .badge {
+    color: white;
+}
+
+body .badge.bg-primary {
+    background: #0077b6 !important;
+}
+
+body .badge.bg-success {
+    background: #00b894 !important;
+}
+
+body .badge.bg-info {
+    background: #0984e3 !important;
+}
+
+body .badge.bg-warning {
+    background: #e17055 !important;
+}
+
+body .badge.bg-secondary {
+    background: #636e72 !important;
+}
+
+/* 浅色模式 - 进度条 */
+body .modern-progress {
+    background: rgba(0, 0, 0, 0.1);
+}
+
+body .modern-progress-bar {
+    background: linear-gradient(90deg, #0077b6 0%, #00a8e8 100%);
+}
+
+body .progress {
+    background: rgba(0, 0, 0, 0.1);
+}
+
+/* 浅色模式 - 代码和pre */
+body code,
+body pre {
+    background: rgba(0, 0, 0, 0.05);
+    color: var(--light-text-primary);
+}
+
+/* 浅色模式 - 链接 */
+body a {
+    color: #0077b6;
+}
+
+body a:hover {
+    color: #005f8f;
+}
+
+/* 浅色模式 - 分隔线 */
+body hr {
+    border-color: var(--light-border-color);
+}
+
+/* 浅色模式 - 列表 */
+body .list-group-item {
+    background: var(--light-bg-card);
+    border-color: var(--light-border-color);
+    color: var(--light-text-primary);
+}
+
+/* 浅色模式 - 下拉菜单 */
+body .dropdown-menu {
+    background: var(--light-bg-card);
+    border-color: var(--light-border-color);
+    color: var(--light-text-primary);
+}
+
+body .dropdown-item {
+    color: var(--light-text-primary);
+}
+
+body .dropdown-item:hover {
+    background: rgba(0, 0, 0, 0.05);
+    color: var(--light-text-primary);
+}
+
+/* 浅色模式 - 模态框 */
+body .modal-content {
+    background: var(--light-bg-card);
+    border-color: var(--light-border-color);
+    color: var(--light-text-primary);
+}
+
+body .modal-header {
+    border-color: var(--light-border-color);
+}
+
+body .modal-footer {
+    border-color: var(--light-border-color);
+}
+
+/* 浅色模式 - 特定组件 */
+body .feature-icon {
+    background: rgba(0, 119, 182, 0.12);
+    color: var(--light-primary);
+}
+
+body .tech-icon-wrapper {
+    color: var(--light-primary);
+}
+
+body .tech-icon-wrapper i {
+    color: var(--light-primary);
+}
+
+body .info-box {
+    background: rgba(0, 0, 0, 0.03) !important;
+    border-color: var(--light-border-color) !important;
+    color: var(--light-text-primary);
+}
+
+body .step-item {
+    color: var(--light-text-primary);
+}
+
+body .step-item small {
+    color: var(--light-text-secondary);
+}
+
+body .progress-card,
+body .steps-card {
+    color: var(--light-text-primary);
+}
+
+/* 浅色模式 - 表单开关 */
+body .form-switch .form-check-input {
+    background-color: #ced4da;
+}
+
+body .form-switch .form-check-input:checked {
+    background-color: #0077b6;
+}
+
+/* 浅色模式 - 预览区域 */
+body .preview-section {
+    color: var(--light-text-primary);
+}
+
+body .preview-item {
+    background: var(--light-bg-card);
+    border-color: var(--light-border-color);
+    color: var(--light-text-primary);
+}
+
+/* 浅色模式 - 统计卡片 */
+body .stat-card {
+    color: var(--light-text-primary);
+}
+
+/* 浅色模式 - 结果项 */
+body .result-item {
+    background: var(--light-bg-card);
+    border-color: var(--light-border-color);
+    color: var(--light-text-primary);
+}
+
+body .result-item .card-header {
+    background: rgba(0, 0, 0, 0.03);
+}
+
+/* 浅色模式 - 键盘快捷键提示 */
+body kbd {
+    background: rgba(0, 0, 0, 0.1);
+    color: var(--light-text-primary);
+    border-color: rgba(0, 0, 0, 0.15);
+}
+
+/* 浅色模式 - 检测详情 */
+body .detection-info {
+    color: var(--light-text-primary);
+}
+
+body .detection-info small {
+    color: var(--light-text-secondary);
+}
+
+/* 浅色模式 - 图片容器 */
+body .image-container {
+    background: rgba(0, 0, 0, 0.02);
+}
+
+/* 浅色模式 - 视频容器 */
+body .video-wrapper {
+    background: #f8f9fa;
+}
+
+/* 浅色模式 - 配置区域 */
+body .config-section {
+    background: var(--light-bg-card);
+    border: 1px solid var(--light-border-color);
+}
+
+body .config-section .card-title,
+body .config-section .form-label,
+body .config-section h5,
+body .config-section h6 {
+    color: var(--light-text-primary) !important;
+}
+
+body .config-section .form-label i,
+body .config-section .card-title i {
+    color: var(--light-primary) !important;
+}
+
+body .config-section optgroup {
+    background: #f8f9fa;
+    color: var(--light-text-primary);
+}
+
+body .config-section select option {
+    background: #ffffff;
+    color: var(--light-text-primary);
+}
+
+/* 浅色模式 - 异步模式选项 */
+body .async-option-section .form-check {
+    background: rgba(0, 119, 182, 0.06) !important;
+}
+
+/* 浅色模式 - Flash消息 */
+body .flash-messages .alert {
+    background: rgba(255, 255, 255, 0.95);
+    border: 1px solid var(--light-border-color);
+    color: var(--light-text-primary);
+}
+
+/* 浅色模式 - 图片覆盖层按钮 */
+body .image-overlay .btn-outline-primary {
+    background: rgba(255, 255, 255, 0.9);
+    color: #005f8f;
+}
+
+body .image-overlay .btn-outline-primary:hover {
+    background: #0077b6;
+    color: white;
+}
+
+/* 浅色模式 - 文本颜色类 */
+body .text-primary {
+    color: #0077b6 !important;
+}
+
+body .text-success {
+    color: #00b894 !important;
+}
+
+body .text-info {
+    color: #0984e3 !important;
+}
+
+body .text-warning {
+    color: #e17055 !important;
+}
+
+body .text-danger {
+    color: #d63031 !important;
+}
+
+/* 浅色模式 - 卡片内标题 */
+body .card .display-4,
+body .card .display-6 {
+    color: var(--light-text-primary) !important;
+}
+
+/* 浅色模式 - 步骤项 */
+body .step-item .step-icon.bg-primary {
+    background: #0077b6 !important;
+}
+
+body .step-item .step-icon.bg-secondary {
+    background: #6c757d !important;
+}
+
+body .step-item .step-icon.bg-success {
+    background: #00b894 !important;
+}
+
+/* 浅色模式 - 状态显示 */
+body #statusDisplay {
+    color: var(--light-text-primary);
+}
+
+body #progressMessage {
+    color: var(--light-text-secondary);
+}
+
+/* 浅色模式 - Toast通知 */
+body .custom-toast {
+    background: rgba(255, 255, 255, 0.98);
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1), 0 2px 8px rgba(0, 0, 0, 0.05);
+    border: 1px solid rgba(0, 0, 0, 0.1);
+    color: var(--light-text-primary);
+}
+
+body .custom-toast.success {
+    box-shadow: 0 4px 20px rgba(0, 184, 148, 0.15), 0 2px 8px rgba(0, 0, 0, 0.05);
+    border-left-color: #00b894;
+}
+
+body .custom-toast.success i {
+    color: #00b894;
+}
+
+body .custom-toast.error {
+    box-shadow: 0 4px 20px rgba(214, 48, 49, 0.15), 0 2px 8px rgba(0, 0, 0, 0.05);
+    border-left-color: #d63031;
+}
+
+body .custom-toast.error i {
+    color: #d63031;
+}
+
+body .custom-toast.warning {
+    box-shadow: 0 4px 20px rgba(225, 112, 85, 0.15), 0 2px 8px rgba(0, 0, 0, 0.05);
+    border-left-color: #e17055;
+}
+
+body .custom-toast.warning i {
+    color: #e17055;
+}
+
+body .custom-toast.info {
+    border-left-color: #0984e3;
+}
+
+body .custom-toast.info i {
+    color: #0984e3;
+}
+
+body .toast-close:hover {
+    background: rgba(0, 0, 0, 0.08);
+}
+
+/* 浅色模式 - 按钮组 */
+body .btn-outline-info {
+    color: #0984e3;
+    border-color: #0984e3;
+}
+
+body .btn-outline-info:hover {
+    background: #0984e3;
+    color: white;
+}
+
+body .btn-outline-success {
+    color: #00b894;
+    border-color: #00b894;
+}
+
+body .btn-outline-success:hover {
+    background: #00b894;
+    color: white;
+}
+
+/* 浅色模式 - 统计卡片 */
+body .stat-card h6 {
+    color: var(--light-text-primary);
+}
+
+/* 浅色模式 - 统计卡片颜色变体 */
+body .stat-card-primary {
+    background: linear-gradient(135deg, rgba(0, 119, 182, 0.1) 0%, rgba(0, 119, 182, 0.05) 100%);
+    border: 1px solid rgba(0, 119, 182, 0.25);
+}
+
+body .stat-card-primary i,
+body .stat-card-primary .display-6 {
+    color: #0077b6;
+}
+
+body .stat-card-success {
+    background: linear-gradient(135deg, rgba(0, 184, 148, 0.1) 0%, rgba(0, 184, 148, 0.05) 100%);
+    border: 1px solid rgba(0, 184, 148, 0.25);
+}
+
+body .stat-card-success i,
+body .stat-card-success .display-6 {
+    color: #00b894;
+}
+
+body .stat-card-warning {
+    background: linear-gradient(135deg, rgba(225, 112, 85, 0.1) 0%, rgba(225, 112, 85, 0.05) 100%);
+    border: 1px solid rgba(225, 112, 85, 0.25);
+}
+
+body .stat-card-warning i,
+body .stat-card-warning .display-6 {
+    color: #e17055;
+}
+
+body .stat-card-info {
+    background: linear-gradient(135deg, rgba(9, 132, 227, 0.1) 0%, rgba(9, 132, 227, 0.05) 100%);
+    border: 1px solid rgba(9, 132, 227, 0.25);
+}
+
+body .stat-card-info i,
+body .stat-card-info .display-6 {
+    color: #0984e3;
+}
+
+/* 深色模式 - 统计卡片颜色变体 */
+body.dark-mode .stat-card-primary {
+    background: linear-gradient(135deg, rgba(0, 212, 255, 0.15) 0%, rgba(0, 128, 255, 0.15) 100%);
+    border: 1px solid rgba(0, 212, 255, 0.3);
+}
+
+body.dark-mode .stat-card-primary i,
+body.dark-mode .stat-card-primary .display-6 {
+    color: var(--neon-cyan);
+}
+
+body.dark-mode .stat-card-success {
+    background: linear-gradient(135deg, rgba(0, 255, 136, 0.15) 0%, rgba(0, 200, 100, 0.15) 100%);
+    border: 1px solid rgba(0, 255, 136, 0.3);
+}
+
+body.dark-mode .stat-card-success i,
+body.dark-mode .stat-card-success .display-6 {
+    color: var(--success-color);
+}
+
+body.dark-mode .stat-card-warning {
+    background: linear-gradient(135deg, rgba(255, 190, 11, 0.15) 0%, rgba(255, 150, 0, 0.15) 100%);
+    border: 1px solid rgba(255, 190, 11, 0.3);
+}
+
+body.dark-mode .stat-card-warning i,
+body.dark-mode .stat-card-warning .display-6 {
+    color: var(--warning-color);
+}
+
+body.dark-mode .stat-card-info {
+    background: linear-gradient(135deg, rgba(0, 212, 255, 0.15) 0%, rgba(131, 56, 236, 0.15) 100%);
+    border: 1px solid rgba(0, 212, 255, 0.3);
+}
+
+body.dark-mode .stat-card-info i,
+body.dark-mode .stat-card-info .display-6 {
+    color: var(--info-color);
+}
+
+/* 浅色模式 - 等待页面提示 */
+body .progress-card .alert {
+    background: rgba(0, 119, 182, 0.08) !important;
+    border-color: rgba(0, 119, 182, 0.2) !important;
+    color: var(--light-text-primary) !important;
 }
 
 /* 深色模式样式 */
 body.dark-mode {
     background: var(--dark-gradient);
     color: var(--dark-text-primary);
+    /* 恢复深色模式的霓虹色 */
+    --neon-cyan: #00ffff;
+    --neon-purple: #bf00ff;
+    --neon-blue: #0080ff;
+    --success-color: #00ff88;
+    --info-color: #00d4ff;
+    --warning-color: #ffbe0b;
+    --danger-color: #ff006e;
+    --primary-color: #00d4ff;
 }
 
 body.dark-mode .navbar {
@@ -495,6 +1093,18 @@ body.dark-mode .badge.bg-warning {
 body.dark-mode .badge.bg-secondary {
     background: rgba(108, 117, 125, 0.3) !important;
     color: #c5c8ca !important;
+}
+
+/* 深色模式 - 统计卡片 */
+body.dark-mode .stat-card h6 {
+    color: var(--dark-text-primary);
+}
+
+/* 深色模式 - 等待页面提示 */
+body.dark-mode .progress-card .alert {
+    background: rgba(0, 212, 255, 0.1) !important;
+    border-color: rgba(0, 212, 255, 0.2) !important;
+    color: var(--dark-text-primary) !important;
 }
 
 /* 基础body样式 */
