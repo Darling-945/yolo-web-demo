@@ -46,22 +46,28 @@
 
             <!-- 统计信息 -->
             <div class="row text-center mb-4">
-              <div class="col-md-4">
+              <div class="col-6 col-md-3">
                 <div class="stat-card">
                   <div class="stat-value" id="detectionCount">0</div>
                   <div class="stat-label">检测对象</div>
                 </div>
               </div>
-              <div class="col-md-4">
+              <div class="col-6 col-md-3">
                 <div class="stat-card">
                   <div class="stat-value" id="fpsCount">0</div>
                   <div class="stat-label">FPS</div>
                 </div>
               </div>
-              <div class="col-md-4">
+              <div class="col-6 col-md-3">
                 <div class="stat-card">
                   <div class="stat-value" id="inferenceTime">0</div>
-                  <div class="stat-label">推理时间(ms)</div>
+                  <div class="stat-label">延迟(ms)</div>
+                </div>
+              </div>
+              <div class="col-6 col-md-3">
+                <div class="stat-card">
+                  <div class="stat-value" id="sessionTime">0</div>
+                  <div class="stat-label">运行(秒)</div>
                 </div>
               </div>
             </div>
@@ -165,19 +171,39 @@
 
   <!-- 检测结果列表 -->
   <section class="results-section" id="resultsSection" style="display: none;">
-    <div class="row justify-content-center">
-      <div class="col-lg-10">
-        <div class="card">
+    <div class="row justify-content-center g-4">
+      <!-- 检测统计面板 -->
+      <div class="col-lg-4">
+        <div class="card h-100">
+          <div class="card-body p-4">
+            <h5 class="card-title mb-4">
+              <i class="fas fa-chart-pie me-2"></i>检测统计
+            </h5>
+            <div id="detectionStatsPanel">
+              <div class="text-center text-muted py-4">
+                <i class="fas fa-chart-bar fa-3x mb-3" style="opacity: 0.3;"></i>
+                <p>开始检测后显示统计信息</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 检测对象详情表格 -->
+      <div class="col-lg-6">
+        <div class="card h-100">
           <div class="card-body p-4">
             <h5 class="card-title mb-4">
               <i class="fas fa-list me-2"></i>检测对象详情
+              <span class="badge bg-primary ms-2" id="currentDetectionCount">0</span>
             </h5>
-            <div class="table-responsive">
-              <table class="table table-hover">
-                <thead>
+            <div class="table-responsive" style="max-height: 400px; overflow-y: auto;">
+              <table class="table table-hover table-sm">
+                <thead class="table-light sticky-top">
                   <tr>
                     <th>类别</th>
                     <th>置信度</th>
+                    <th>尺寸</th>
                     <th>位置</th>
                   </tr>
                 </thead>
@@ -290,6 +316,73 @@
   }
 }
 
+/* 检测结果表格行动画 */
+.fade-in-row {
+  animation: fadeInRow 0.3s ease forwards;
+  opacity: 0;
+}
+
+@keyframes fadeInRow {
+  from {
+    opacity: 0;
+    transform: translateX(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+/* 类别名称样式 */
+.class-name {
+  font-weight: 600;
+  color: var(--primary-color);
+}
+
+/* 统计面板样式 */
+.class-stat-item {
+  padding: 0.5rem;
+  border-radius: 8px;
+  transition: background 0.2s ease;
+}
+
+.class-stat-item:hover {
+  background: rgba(0, 0, 0, 0.05);
+}
+
+.class-label {
+  font-size: 0.9rem;
+  font-weight: 500;
+}
+
+/* 表格优化 */
+.table-hover tbody tr:hover {
+  background-color: rgba(33, 150, 243, 0.05);
+}
+
+.table-sm td, .table-sm th {
+  padding: 0.5rem 0.75rem;
+}
+
+/* 滚动条美化 */
+.table-responsive::-webkit-scrollbar {
+  width: 6px;
+}
+
+.table-responsive::-webkit-scrollbar-track {
+  background: rgba(0, 0, 0, 0.05);
+  border-radius: 3px;
+}
+
+.table-responsive::-webkit-scrollbar-thumb {
+  background: rgba(33, 150, 243, 0.3);
+  border-radius: 3px;
+}
+
+.table-responsive::-webkit-scrollbar-thumb:hover {
+  background: rgba(33, 150, 243, 0.5);
+}
+
 @media (max-width: 768px) {
   .stat-value {
     font-size: 2rem;
@@ -311,6 +404,15 @@
   .network-indicator .badge {
     font-size: 0.75rem;
     padding: 6px 10px;
+  }
+
+  .results-section .row {
+    flex-direction: column;
+  }
+
+  .results-section .col-lg-4,
+  .results-section .col-lg-6 {
+    width: 100%;
   }
 }
 </style>

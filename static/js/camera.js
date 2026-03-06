@@ -12,10 +12,10 @@ let isDetecting = false;
 let detectionInterval = null;
 let lastFrameTime = 0;
 
-// 帧率配置（保守设置，避免触发速率限制）
-const TARGET_FPS = 3;       // 目标FPS：每秒3次检测
-const MIN_FPS = 1;          // 最小FPS：每秒1次
-const MAX_FPS = 5;          // 最大FPS：每秒5次
+// 帧率配置（优化设置，提升响应速度）
+const TARGET_FPS = 5;       // 目标FPS：每秒5次检测（提升流畅度）
+const MIN_FPS = 2;          // 最小FPS：每秒2次（提升最低响应）
+const MAX_FPS = 8;          // 最大FPS：每秒8次（高性能设备可用）
 let currentTargetFps = TARGET_FPS;
 let FRAME_INTERVAL = 1000 / currentTargetFps;
 
@@ -24,15 +24,15 @@ let frameCount = 0;
 let lastFpsUpdate = Date.now();
 let currentFps = 0;
 
-// 请求控制（严格限制，同一时间只允许一个请求）
+// 请求控制（优化限制，同一时间只允许一个请求）
 let pendingRequest = null;
 let isRequestInProgress = false;  // 是否有请求正在进行
 let lastRequestTime = 0;          // 上次请求时间
-const MIN_REQUEST_INTERVAL = 100; // 最小请求间隔(ms)
+const MIN_REQUEST_INTERVAL = 50;  // 最小请求间隔(ms) - 降低以提升响应
 
 // 图片压缩配置（YOLO模型标准输入分辨率）
 const MODEL_INPUT_SIZE = 640;     // YOLO标准输入尺寸640x640
-const JPEG_QUALITY = 0.4;         // JPEG压缩质量0.4（更低以减小传输大小）
+const JPEG_QUALITY = 0.6;         // JPEG压缩质量0.6（平衡质量与传输大小）
 
 // 速率限制控制
 let rateLimitBackoff = false;
@@ -46,6 +46,13 @@ const SUCCESS_TO_RECOVER = 5;     // 连续成功5次后恢复帧率
 // 性能监控
 let inferenceTimes = [];
 const MAX_INFERENCE_SAMPLES = 10;
+
+// ===== 检测统计与历史 =====
+let detectionStats = {};           // 按类别统计 {className: count}
+let detectionHistory = [];         // 最近检测历史
+const MAX_HISTORY_LENGTH = 50;     // 保留最近50条记录
+let totalDetections = 0;           // 总检测数
+let sessionStartTime = null;       // 会话开始时间
 
 // 摄像头设备管理
 let currentDeviceId = null;
@@ -428,6 +435,12 @@ async function startCamera() {
 
                 // 启用截图按钮
                 if (captureBtn) captureBtn.disabled = false;
+
+                // 初始化会话统计
+                sessionStartTime = Date.now();
+                detectionStats = {};
+                detectionHistory = [];
+                totalDetections = 0;
 
                 // 开始检测循环
                 startDetectionLoop();
@@ -895,6 +908,12 @@ function stopCamera() {
     frameCount = 0;
     currentFps = 0;
 
+    // 重置检测统计
+    detectionStats = {};
+    detectionHistory = [];
+    totalDetections = 0;
+    sessionStartTime = null;
+
     // 清除重连定时器
     if (reconnectTimeout) {
         clearTimeout(reconnectTimeout);
@@ -986,6 +1005,9 @@ function startDetectionLoop() {
         currentFps = Math.round((frameCount * 1000) / fpsElapsed);
         frameCount = 0;
         lastFpsUpdate = now;
+
+        // 更新会话时间显示
+        updateSessionTime();
     }
 
     // 继续循环
@@ -1246,24 +1268,24 @@ function updatePerformanceMetrics(inferenceTime) {
 }
 
 /**
- * 自适应调整帧率（保守策略）
+ * 自适应调整帧率（优化策略）
  */
 function adjustFrameRate(avgInferenceTime) {
-    const targetInferenceTime = 200; // 目标推理时间200ms（更宽松）
+    const targetInferenceTime = 150; // 目标推理时间150ms（更激进）
 
     let newFps = currentTargetFps;
 
-    // 推理时间过长（>400ms），立即降低帧率
+    // 推理时间过长（>300ms），降低帧率
     if (avgInferenceTime > targetInferenceTime * 2) {
         newFps = Math.max(MIN_FPS, currentTargetFps - 1);
         console.log(`推理时间过长(${avgInferenceTime.toFixed(0)}ms)，降低帧率`);
     }
-    // 推理时间很短（<100ms）且样本充足，可以缓慢提升帧率
+    // 推理时间很短（<75ms）且样本充足，可以提升帧率
     else if (avgInferenceTime < targetInferenceTime / 2 &&
              inferenceTimes.length >= MAX_INFERENCE_SAMPLES &&
-             currentTargetFps < TARGET_FPS) {
-        // 只有在帧率低于目标时才提升
-        newFps = Math.min(TARGET_FPS, currentTargetFps + 1);
+             currentTargetFps < MAX_FPS) {
+        // 只有在帧率低于最大值时才提升
+        newFps = Math.min(MAX_FPS, currentTargetFps + 1);
         console.log(`推理时间稳定(${avgInferenceTime.toFixed(0)}ms)，可提升帧率`);
     }
 
@@ -1276,7 +1298,7 @@ function adjustFrameRate(avgInferenceTime) {
 }
 
 /**
- * 在canvas上绘制检测结果
+ * 在canvas上绘制检测结果（增强版）
  * 注意：检测框坐标是基于canvas像素尺寸的，与发送到后端的图像尺寸一致
  */
 function drawDetections(detections) {
@@ -1287,16 +1309,17 @@ function drawDetections(detections) {
         return;
     }
 
-    // 定义颜色映射
+    // 定义颜色映射（更鲜艳的颜色）
     const colors = [
-        '#FF5733', '#33FF57', '#3357FF', '#FF33F6', '#33FFF6',
-        '#F6FF33', '#FF8C33', '#8C33FF', '#FF338C', '#33FF8C'
+        '#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4', '#FFEAA7',
+        '#DDA0DD', '#98D8C8', '#F7DC6F', '#BB8FCE', '#85C1E9'
     ];
 
     // 计算合适的线条宽度和字体大小
-    const lineWidth = Math.max(2, Math.min(4, canvasElement.width / 400));
-    const fontSize = Math.max(14, Math.min(20, canvasElement.width / 35));
-    const padding = 8;
+    const lineWidth = Math.max(2, Math.min(3, canvasElement.width / 400));
+    const fontSize = Math.max(12, Math.min(18, canvasElement.width / 40));
+    const cornerRadius = Math.max(4, Math.min(8, canvasElement.width / 200));
+    const padding = 6;
 
     detections.forEach((det, index) => {
         const bbox = det.bbox; // [x1, y1, x2, y2] - 已还原到原始尺寸
@@ -1317,14 +1340,22 @@ function drawDetections(detections) {
             return;
         }
 
-        // 绘制检测框
+        // 绘制带圆角的检测框
         ctx.strokeStyle = color;
         ctx.lineWidth = lineWidth;
-        ctx.strokeRect(x, y, width, height);
+        ctx.beginPath();
+        ctx.roundRect(x, y, width, height, cornerRadius);
+        ctx.stroke();
+
+        // 绘制半透明填充
+        ctx.fillStyle = color + '15'; // 10% 透明度
+        ctx.beginPath();
+        ctx.roundRect(x, y, width, height, cornerRadius);
+        ctx.fill();
 
         // 绘制标签
         const label = `${className} ${(confidence * 100).toFixed(0)}%`;
-        ctx.font = `bold ${fontSize}px Arial`;
+        ctx.font = `bold ${fontSize}px Arial, sans-serif`;
         const textMetrics = ctx.measureText(label);
         const textWidth = textMetrics.width;
         const textHeight = fontSize;
@@ -1348,9 +1379,16 @@ function drawDetections(detections) {
             labelX = padding;
         }
 
-        // 绘制标签背景
+        // 绘制标签背景（带圆角）
+        const labelBgX = labelX - padding / 2;
+        const labelBgY = labelY - textHeight / 2 - 2;
+        const labelBgW = textWidth + padding;
+        const labelBgH = textHeight + 6;
+
         ctx.fillStyle = color;
-        ctx.fillRect(labelX - padding / 2, labelY - textHeight / 2, textWidth + padding, textHeight + 4);
+        ctx.beginPath();
+        ctx.roundRect(labelBgX, labelBgY, labelBgW, labelBgH, 4);
+        ctx.fill();
 
         // 绘制标签文字
         ctx.fillStyle = '#FFFFFF';
@@ -1373,7 +1411,18 @@ function updateStatistics(detectionCount, fps, inferenceTime) {
 }
 
 /**
- * 更新检测结果表格
+ * 更新会话时间显示
+ */
+function updateSessionTime() {
+    const sessionTimeElement = document.getElementById('sessionTime');
+    if (sessionTimeElement && sessionStartTime) {
+        const elapsed = Math.round((Date.now() - sessionStartTime) / 1000);
+        sessionTimeElement.textContent = elapsed;
+    }
+}
+
+/**
+ * 更新检测结果表格（增强版）
  */
 function updateDetectionTable(detections) {
     const tableBody = document.getElementById('detectionTableBody');
@@ -1381,34 +1430,175 @@ function updateDetectionTable(detections) {
 
     if (!tableBody) return;
 
+    // 更新统计信息
+    updateDetectionStats(detections);
+
     // 显示结果区域
     if (detections && detections.length > 0) {
         if (resultsSection) resultsSection.style.display = 'block';
 
+        // 更新当前检测数量标签
+        const countBadge = document.getElementById('currentDetectionCount');
+        if (countBadge) {
+            countBadge.textContent = detections.length;
+        }
+
         // 清空表格
         tableBody.innerHTML = '';
 
+        // 按置信度排序
+        const sortedDetections = [...detections].sort((a, b) => b.confidence - a.confidence);
+
         // 添加检测结果行
-        detections.forEach(det => {
+        sortedDetections.forEach((det, index) => {
             const row = document.createElement('tr');
+            const confidencePercent = (det.confidence * 100).toFixed(1);
+            const confidenceClass = det.confidence > 0.7 ? 'success' : (det.confidence > 0.4 ? 'warning' : 'danger');
+
+            // 计算边界框尺寸
+            const boxWidth = Math.round(det.bbox[2] - det.bbox[0]);
+            const boxHeight = Math.round(det.bbox[3] - det.bbox[1]);
+            const boxArea = boxWidth * boxHeight;
+
             row.innerHTML = `
-                <td><strong>${det.class}</strong></td>
                 <td>
                     <div class="d-flex align-items-center gap-2">
-                        <div class="progress" style="width: 100px; height: 8px;">
-                            <div class="progress-bar bg-success" style="width: ${det.confidence * 100}%"></div>
-                        </div>
-                        <span>${(det.confidence * 100).toFixed(1)}%</span>
+                        <span class="badge bg-primary rounded-pill">${index + 1}</span>
+                        <strong class="class-name">${det.class}</strong>
                     </div>
                 </td>
-                <td><code>[${det.bbox[0].toFixed(0)}, ${det.bbox[1].toFixed(0)}, ${det.bbox[2].toFixed(0)}, ${det.bbox[3].toFixed(0)}]</code></td>
+                <td>
+                    <div class="d-flex flex-column gap-1">
+                        <div class="d-flex align-items-center gap-2">
+                            <div class="progress flex-grow-1" style="height: 8px; min-width: 80px;">
+                                <div class="progress-bar bg-${confidenceClass}" style="width: ${confidencePercent}%"></div>
+                            </div>
+                            <span class="badge bg-${confidenceClass}">${confidencePercent}%</span>
+                        </div>
+                    </div>
+                </td>
+                <td>
+                    <small class="text-muted">
+                        ${boxWidth}×${boxHeight}px
+                        <span class="ms-2 text-info">(${(boxArea / 1000).toFixed(1)}k)</span>
+                    </small>
+                </td>
+                <td>
+                    <code class="small">(${Math.round(det.bbox[0])}, ${Math.round(det.bbox[1])})</code>
+                </td>
             `;
+            row.style.animationDelay = `${index * 0.05}s`;
+            row.classList.add('fade-in-row');
             tableBody.appendChild(row);
         });
+
+        // 更新统计面板
+        updateStatsPanel();
     } else {
-        if (resultsSection) resultsSection.style.display = 'none';
+        // 如果没有检测结果但之前有，保持统计面板显示
+        if (Object.keys(detectionStats).length > 0) {
+            updateStatsPanel();
+        } else {
+            if (resultsSection) resultsSection.style.display = 'none';
+        }
         tableBody.innerHTML = '';
     }
+}
+
+/**
+ * 更新检测统计信息
+ */
+function updateDetectionStats(detections) {
+    if (!detections) return;
+
+    // 更新类别统计
+    detections.forEach(det => {
+        const className = det.class;
+        if (!detectionStats[className]) {
+            detectionStats[className] = 0;
+        }
+        detectionStats[className]++;
+        totalDetections++;
+    });
+
+    // 添加到历史记录
+    const historyEntry = {
+        timestamp: Date.now(),
+        count: detections.length,
+        classes: detections.map(d => d.class)
+    };
+    detectionHistory.push(historyEntry);
+
+    // 限制历史长度
+    if (detectionHistory.length > MAX_HISTORY_LENGTH) {
+        detectionHistory.shift();
+    }
+}
+
+/**
+ * 更新统计面板显示
+ */
+function updateStatsPanel() {
+    const statsPanel = document.getElementById('detectionStatsPanel');
+    if (!statsPanel) return;
+
+    // 计算统计数据
+    const sortedStats = Object.entries(detectionStats)
+        .sort((a, b) => b[1] - a[1]);
+
+    const totalClasses = sortedStats.length;
+    const sessionDuration = sessionStartTime ?
+        Math.round((Date.now() - sessionStartTime) / 1000) : 0;
+    const avgDetectionsPerSecond = sessionDuration > 0 ?
+        (totalDetections / sessionDuration).toFixed(1) : 0;
+
+    // 生成颜色条
+    const maxCount = sortedStats.length > 0 ? sortedStats[0][1] : 1;
+    const colors = [
+        '#FF5733', '#33FF57', '#3357FF', '#FF33F6', '#33FFF6',
+        '#F6FF33', '#FF8C33', '#8C33FF', '#FF338C', '#33FF8C'
+    ];
+
+    let statsHTML = `
+        <div class="row g-3 mb-3">
+            <div class="col-4 text-center">
+                <div class="small text-muted">总类别数</div>
+                <div class="fs-4 fw-bold text-primary">${totalClasses}</div>
+            </div>
+            <div class="col-4 text-center">
+                <div class="small text-muted">总检测数</div>
+                <div class="fs-4 fw-bold text-success">${totalDetections}</div>
+            </div>
+            <div class="col-4 text-center">
+                <div class="small text-muted">平均速率</div>
+                <div class="fs-4 fw-bold text-info">${avgDetectionsPerSecond}/s</div>
+            </div>
+        </div>
+        <div class="class-stats">
+    `;
+
+    sortedStats.slice(0, 8).forEach(([className, count], index) => {
+        const percentage = (count / maxCount * 100).toFixed(0);
+        const color = colors[index % colors.length];
+        statsHTML += `
+            <div class="class-stat-item mb-2">
+                <div class="d-flex justify-content-between mb-1">
+                    <span class="class-label"><i class="fas fa-circle me-1" style="color: ${color}"></i>${className}</span>
+                    <span class="badge bg-secondary">${count}</span>
+                </div>
+                <div class="progress" style="height: 6px;">
+                    <div class="progress-bar" style="width: ${percentage}%; background-color: ${color}"></div>
+                </div>
+            </div>
+        `;
+    });
+
+    if (sortedStats.length > 8) {
+        statsHTML += `<div class="text-muted small text-center">还有 ${sortedStats.length - 8} 个类别...</div>`;
+    }
+
+    statsHTML += '</div>';
+    statsPanel.innerHTML = statsHTML;
 }
 
 /**
