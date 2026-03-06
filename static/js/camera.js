@@ -15,10 +15,10 @@ let isDetecting = false;
 let detectionInterval = null;
 let lastFrameTime = 0;
 
-// 帧率配置（优化后提升帧率）
-const TARGET_FPS = 10;      // 目标FPS：每秒10次检测
-const MIN_FPS = 3;          // 最小FPS：每秒3次（低速状态）
-const MAX_FPS = 15;         // 最大FPS：每秒15次（高性能设备可用）
+// 帧率配置（性能优化：提高帧率）
+const TARGET_FPS = 15;      // 目标FPS：每秒15次检测
+const MIN_FPS = 5;          // 最小FPS：每秒5次（低速状态）
+const MAX_FPS = 30;         // 最大FPS：每秒30次（高性能设备可用）
 let currentTargetFps = TARGET_FPS;
 let FRAME_INTERVAL = 1000 / currentTargetFps;
 
@@ -31,11 +31,11 @@ let currentFps = 0;
 let pendingRequest = null;
 let isRequestInProgress = false;  // 是否有请求正在进行
 let lastRequestTime = 0;          // 上次请求时间
-const MIN_REQUEST_INTERVAL = 50;  // 最小请求间隔(ms) - 降低以提升响应
+const MIN_REQUEST_INTERVAL = 30;  // 最小请求间隔(ms) - 进一步降低
 
-// 图片压缩配置（YOLO模型标准输入分辨率）
-const MODEL_INPUT_SIZE = 640;     // YOLO标准输入尺寸640x640
-const JPEG_QUALITY = 0.6;         // JPEG压缩质量0.6（平衡质量与传输大小）
+// 图片压缩配置（性能优化：降低分辨率减少传输和处理时间）
+const MODEL_INPUT_SIZE = 320;     // 降低到320x320（速度优先）
+const JPEG_QUALITY = 0.5;         // JPEG压缩质量0.5（减少传输数据）
 
 // 速率限制控制
 let rateLimitBackoff = false;
@@ -77,6 +77,23 @@ const DETECTION_TIMEOUT = 2000; // 检测结果超时时间（ms），超过此�
 let offscreenCanvas = null;
 let offscreenCtx = null;
 let lastCompressedSize = { width: 0, height: 0 };
+let lastVideoRect = null;  // 缓存视频尺寸，减少DOM查询
+let lastCanvasStyleUpdate = 0;  // 控制canvas样式更新频率
+
+// ===== 性能优化：缓存DOM元素引用 =====
+let cachedModelSelect = null;
+let cachedConfidenceInput = null;
+let cachedIouInput = null;
+
+// 获取缓存的DOM元素
+function getCachedElements() {
+    if (!cachedModelSelect) {
+        cachedModelSelect = document.getElementById('cameraModelSelect');
+        cachedConfidenceInput = document.getElementById('cameraConfidenceInput');
+        cachedIouInput = document.getElementById('cameraIouInput');
+    }
+    return { cachedModelSelect, cachedConfidenceInput, cachedIouInput };
+}
 
 // 页面加载完成后初始化
 document.addEventListener('DOMContentLoaded', function() {
@@ -1054,16 +1071,20 @@ async function captureAndDetect() {
         const videoWidth = videoElement.videoWidth;
         const videoHeight = videoElement.videoHeight;
 
-        // 更新显示canvas尺寸（用于绘制检测框）
+        // 性能优化：仅在尺寸变化时更新canvas
         if (canvasElement.width !== videoWidth || canvasElement.height !== videoHeight) {
             canvasElement.width = videoWidth;
             canvasElement.height = videoHeight;
         }
 
-        // 更新canvas显示尺寸
-        const videoRect = videoElement.getBoundingClientRect();
-        canvasElement.style.width = videoRect.width + 'px';
-        canvasElement.style.height = videoRect.height + 'px';
+        // 性能优化：降低canvas样式更新频率（每500ms一次）
+        const now = Date.now();
+        if (now - lastCanvasStyleUpdate > 500) {
+            const videoRect = videoElement.getBoundingClientRect();
+            canvasElement.style.width = videoRect.width + 'px';
+            canvasElement.style.height = videoRect.height + 'px';
+            lastCanvasStyleUpdate = now;
+        }
 
         // 计算压缩后的尺寸（保持宽高比，最长边为MODEL_INPUT_SIZE）
         const scale = Math.min(MODEL_INPUT_SIZE / videoWidth, MODEL_INPUT_SIZE / videoHeight);
@@ -1100,14 +1121,12 @@ async function captureAndDetect() {
             // 添加压缩信息，让后端知道原始比例
             formData.append('scale', scale.toFixed(4));
 
-            // 获取参数
-            const modelSelect = document.getElementById('cameraModelSelect');
-            const confidenceInput = document.getElementById('cameraConfidenceInput');
-            const iouInput = document.getElementById('cameraIouInput');
+            // 性能优化：使用缓存的DOM元素引用
+            const { cachedModelSelect, cachedConfidenceInput, cachedIouInput } = getCachedElements();
 
-            const modelName = modelSelect ? modelSelect.value : 'yolo11n.pt';
-            const confidenceValue = confidenceInput ? confidenceInput.value : '0.25';
-            const iouValue = iouInput ? iouInput.value : '0.45';
+            const modelName = cachedModelSelect ? cachedModelSelect.value : 'yolo11n.pt';
+            const confidenceValue = cachedConfidenceInput ? cachedConfidenceInput.value : '0.25';
+            const iouValue = cachedIouInput ? cachedIouInput.value : '0.45';
 
             formData.append('model', modelName);
             formData.append('confidence', confidenceValue);

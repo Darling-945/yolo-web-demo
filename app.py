@@ -5,6 +5,7 @@ import json
 import cv2
 import numpy as np
 import time
+import torch
 import socket
 import select
 import uuid
@@ -301,6 +302,7 @@ def camera_detect():
 
     性能优化：
     - 直接从内存解码图像，避免临时文件I/O
+    - 使用torch.inference_mode()减少内存开销
     - 直接在predict中传入参数，避免阈值保存/恢复
     - 使用numpy高效处理图像数据
     """
@@ -337,13 +339,14 @@ def camera_detect():
         if img is None:
             return {'success': False, 'error': '无法解码图像'}, 400
 
-        # 执行检测 - 直接传入参数，避免阈值保存/恢复
-        results = yolo_inference.model.predict(
-            img,
-            conf=params['conf_threshold'],
-            iou=params['iou_threshold'],
-            verbose=False
-        )
+        # 使用torch.inference_mode()进行高效推理
+        with torch.inference_mode():
+            results = yolo_inference.model.predict(
+                img,
+                conf=params['conf_threshold'],
+                iou=params['iou_threshold'],
+                verbose=False
+            )
 
         # 处理结果
         detections = []
