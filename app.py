@@ -2,6 +2,7 @@ from flask import Flask, render_template, request, redirect, url_for, flash, jso
 from flask.json.provider import DefaultJSONProvider
 import os
 import json
+import cv2
 import numpy as np
 import time
 import socket
@@ -296,7 +297,13 @@ def camera_debug():
 @app.route('/api/camera_detect', methods=['POST'])
 @limiter.limit('1000/minute')  # 摄像头实时检测专用限制（覆盖默认限制）
 def camera_detect():
-    """接收摄像头帧进行推理的API接口"""
+    """接收摄像头帧进行推理的API接口
+
+    性能优化：
+    - 直接从内存解码图像，避免临时文件I/O
+    - 直接在predict中传入参数，避免阈值保存/恢复
+    - 使用numpy高效处理图像数据
+    """
     if not CAMERA_FEATURE_ENABLED:
         return {'success': False, 'error': '功能已禁用'}, 404
 
@@ -317,81 +324,59 @@ def camera_detect():
             except ValueError:
                 scale = 1.0
 
-        # 保存临时文件
-        import tempfile
-        with tempfile.NamedTemporaryFile(delete=False, suffix='.jpg') as tmp_file:
-            file.save(tmp_file.name)
-            temp_path = tmp_file.name
+        # 获取推理参数
+        params = process_inference_parameters(request, config)
 
-        try:
-            # 获取推理参数
-            params = process_inference_parameters(request, config)
+        # 切换模型（仅在需要时）
+        if params['model_name'] != yolo_inference.model_path:
+            yolo_inference.change_model(params['model_name'])
 
-            # 切换模型
-            if params['model_name'] != yolo_inference.model_path:
-                yolo_inference.change_model(params['model_name'])
+        # 直接从内存解码图像 - 避免临时文件I/O
+        file_bytes = np.frombuffer(file.read(), dtype=np.uint8)
+        img = cv2.imdecode(file_bytes, cv2.IMREAD_COLOR)
+        if img is None:
+            return {'success': False, 'error': '无法解码图像'}, 400
 
-            # 设置阈值
-            original_conf = yolo_inference.conf_threshold
-            original_iou = yolo_inference.iou_threshold
-            yolo_inference.conf_threshold = params['conf_threshold']
-            yolo_inference.iou_threshold = params['iou_threshold']
+        # 执行检测 - 直接传入参数，避免阈值保存/恢复
+        results = yolo_inference.model.predict(
+            img,
+            conf=params['conf_threshold'],
+            iou=params['iou_threshold'],
+            verbose=False
+        )
 
-            # 进行推理（不保存图像）
-            import cv2
-            img = cv2.imread(temp_path)
-            if img is None:
-                return {'success': False, 'error': '无法读取图像'}, 400
+        # 处理结果
+        detections = []
+        if results and len(results) > 0:
+            result = results[0]
+            if hasattr(result, 'boxes') and result.boxes is not None:
+                boxes = result.boxes
+                inv_scale = 1.0 / scale  # 预计算倒数，避免重复除法
+                num_boxes = len(boxes)
 
-            # 执行检测
-            results = yolo_inference.model.predict(
-                img,
-                conf=yolo_inference.conf_threshold,
-                iou=yolo_inference.iou_threshold,
-                verbose=False
-            )
+                for i in range(num_boxes):
+                    box = boxes.xyxy[i].cpu().numpy()
+                    conf = float(boxes.conf[i].cpu().numpy())
+                    cls = int(boxes.cls[i].cpu().numpy()) if hasattr(boxes, 'cls') else 0
 
-            # 处理结果
-            detections = []
-            if results and len(results) > 0:
-                result = results[0]
-                if hasattr(result, 'boxes') and result.boxes is not None:
-                    boxes = result.boxes
-                    for i in range(len(boxes)):
-                        box = boxes.xyxy[i].cpu().numpy()
-                        conf = boxes.conf[i].cpu().numpy()
-                        cls = int(boxes.cls[i].cpu().numpy()) if hasattr(boxes, 'cls') else 0
+                    # 获取类别名称
+                    class_name = yolo_inference.model.names[cls] if hasattr(yolo_inference.model, 'names') else f'class_{cls}'
 
-                        # 获取类别名称
-                        class_name = yolo_inference.model.names[cls] if hasattr(yolo_inference.model, 'names') else f'class_{cls}'
+                    # 将检测框坐标还原到原始尺寸（使用乘法代替除法）
+                    original_box = [float(x * inv_scale) for x in box]
 
-                        # 将检测框坐标还原到原始尺寸
-                        original_box = [float(x / scale) for x in box]
+                    detections.append({
+                        'class': class_name,
+                        'confidence': conf,
+                        'bbox': original_box,
+                        'class_id': cls
+                    })
 
-                        detections.append({
-                            'class': class_name,
-                            'confidence': float(conf),
-                            'bbox': original_box,
-                            'class_id': cls
-                        })
-
-            # 恢复阈值
-            yolo_inference.conf_threshold = original_conf
-            yolo_inference.iou_threshold = original_iou
-
-            return jsonify({
-                'success': True,
-                'detections': detections,
-                'count': len(detections)
-            })
-
-        finally:
-            # 清理临时文件
-            try:
-                import os
-                os.unlink(temp_path)
-            except:
-                pass
+        return jsonify({
+            'success': True,
+            'detections': detections,
+            'count': len(detections)
+        })
 
     except Exception as e:
         logger.error(f"Camera detection error: {str(e)}")

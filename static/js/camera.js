@@ -3,6 +3,9 @@
  * 使用 getUserMedia API 获取摄像头，定期捕获帧并发送到后端进行推理
  */
 
+// 调试模式（设为false可减少控制台输出，提升性能）
+const DEBUG_MODE = false;
+
 // 全局变量
 let videoElement = null;
 let canvasElement = null;
@@ -12,10 +15,10 @@ let isDetecting = false;
 let detectionInterval = null;
 let lastFrameTime = 0;
 
-// 帧率配置（优化设置，提升响应速度）
-const TARGET_FPS = 5;       // 目标FPS：每秒5次检测（提升流畅度）
-const MIN_FPS = 2;          // 最小FPS：每秒2次（提升最低响应）
-const MAX_FPS = 8;          // 最大FPS：每秒8次（高性能设备可用）
+// 帧率配置（优化后提升帧率）
+const TARGET_FPS = 10;      // 目标FPS：每秒10次检测
+const MIN_FPS = 3;          // 最小FPS：每秒3次（低速状态）
+const MAX_FPS = 15;         // 最大FPS：每秒15次（高性能设备可用）
 let currentTargetFps = TARGET_FPS;
 let FRAME_INTERVAL = 1000 / currentTargetFps;
 
@@ -69,6 +72,11 @@ let latestDetections = [];
 let detectionUpdateTime = 0;
 let renderAnimationId = null;
 const DETECTION_TIMEOUT = 2000; // 检测结果超时时间（ms），超过此时间不显示框
+
+// ===== 性能优化：复用离屏canvas =====
+let offscreenCanvas = null;
+let offscreenCtx = null;
+let lastCompressedSize = { width: 0, height: 0 };
 
 // 页面加载完成后初始化
 document.addEventListener('DOMContentLoaded', function() {
@@ -1062,11 +1070,16 @@ async function captureAndDetect() {
         const compressedWidth = Math.round(videoWidth * scale);
         const compressedHeight = Math.round(videoHeight * scale);
 
-        // 创建压缩用的离屏canvas
-        const offscreenCanvas = document.createElement('canvas');
-        offscreenCanvas.width = compressedWidth;
-        offscreenCanvas.height = compressedHeight;
-        const offscreenCtx = offscreenCanvas.getContext('2d');
+        // 性能优化：复用离屏canvas，仅在尺寸变化时重新创建
+        if (!offscreenCanvas ||
+            lastCompressedSize.width !== compressedWidth ||
+            lastCompressedSize.height !== compressedHeight) {
+            offscreenCanvas = document.createElement('canvas');
+            offscreenCanvas.width = compressedWidth;
+            offscreenCanvas.height = compressedHeight;
+            offscreenCtx = offscreenCanvas.getContext('2d');
+            lastCompressedSize = { width: compressedWidth, height: compressedHeight };
+        }
 
         // 绘制压缩后的图像
         offscreenCtx.drawImage(videoElement, 0, 0, compressedWidth, compressedHeight);
@@ -1100,7 +1113,9 @@ async function captureAndDetect() {
             formData.append('confidence', confidenceValue);
             formData.append('iou', iouValue);
 
-            console.log(`发送检测请求: model=${modelName}, conf=${confidenceValue}, iou=${iouValue}`);
+            if (DEBUG_MODE) {
+                console.log(`发送检测请求: model=${modelName}, conf=${confidenceValue}, iou=${iouValue}`);
+            }
 
             // 创建可取消的请求
             const controller = new AbortController();
@@ -1150,7 +1165,9 @@ async function captureAndDetect() {
                 const endTime = performance.now();
                 const inferenceTime = Math.round(endTime - startTime);
 
-                console.log(`检测完成: success=${result.success}, count=${result.count}, time=${inferenceTime}ms`);
+                if (DEBUG_MODE) {
+                    console.log(`检测完成: success=${result.success}, count=${result.count}, time=${inferenceTime}ms`);
+                }
 
                 if (result.success) {
                     // ===== 优化：更新最新检测结果，不恢复旧帧 =====
