@@ -94,6 +94,8 @@ temp/
 .env*
 logs/
 *.log
+cert.pem
+key.pem
 
 # OS specific
 .DS_Store

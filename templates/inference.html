@@ -18,7 +18,7 @@
                 <div class="card h-100 image-card">
                     <div class="card-header text-center py-4">
                         <h5 class="card-title mb-0 fw-semibold">
-                            <i class="fas fa-image me-2" style="color: var(--neon-cyan);"></i>
+                            <i class="fas fa-image me-2" style="color: var(--zap-orange);"></i>
                             原始图片
                         </h5>
                     </div>
@@ -27,13 +27,13 @@
                             {% if saveLocation %}
                             <img
                                 src="{{ url_for('static', filename=normalize_path(saveLocation)) }}"
-                                class="img-fluid rounded-3 shadow-lg lazy-image"
+                                class="img-fluid rounded lazy-image"
                                 alt="原始图片"
                                 loading="lazy"
                                 decoding="async"
                                 fetchpriority="high"
-                                style="max-height: 300px; object-fit: contain; border: 3px solid var(--neon-cyan); box-shadow: 0 0 20px rgba(0, 212, 255, 0.3);"
-                                onerror="this.onerror=null; this.src='data:image/svg+xml;charset=UTF-8,%3Csvg%20width%3D%22640%22%20height%3D%22350%22%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%3E%3Crect%20width%3D%22100%25%22%20height%3D%22100%25%22%20fill%3D%22%23f8f9fa%22%2F%3E%3Ctext%20x%3D%2250%25%22%20y%3D%2250%25%22%20dominant-baseline%3D%22middle%22%20text-anchor%3D%22middle%22%20fill%3D%22%236c757d%22%20font-family%3D%22sans-serif%22%20font-size%3D%2214px%22%3EOriginal%20image%20not%20available%3C%2Ftext%3E%3C%2Fsvg%3E';">
+                                style="max-height: 300px; object-fit: contain; border: 1px solid var(--sand);"
+                                onerror="this.onerror=null; this.src='data:image/svg+xml;charset=UTF-8,%3Csvg%20width%3D%22640%22%20height%3D%22350%22%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%3E%3Crect%20width%3D%22100%25%22%20height%3D%22100%25%22%20fill%3D%22%23f8f9fa%22%2F%3E%3Ctext%20x%3D%2250%25%22%20y%3D%2250%25%22%20dominant-baseline%3D%22middle%22%20text-anchor%3D%22middle%22%20fill%3D%22%236c757d%22%20font-family%3D%22sans-serif%22%20font-size%3D%2214px%22%3E%E5%8E%9F%E5%A7%8B%E5%9B%BE%E7%89%87%E4%B8%8D%E5%8F%AF%E7%94%A8%3C%2Ftext%3E%3C%2Fsvg%3E';">
                             <div class="image-overlay">
                                 <button class="btn btn-outline-primary btn-lg" onclick="viewFullscreen('{{ url_for('static', filename=normalize_path(saveLocation)) }}')">
                                     <i class="fas fa-expand me-2"></i>全屏查看
@@ -53,7 +53,7 @@
                 <div class="card h-100 image-card">
                     <div class="card-header text-center py-4">
                         <h5 class="card-title mb-0 fw-semibold">
-                            <i class="fas fa-search me-2" style="color: var(--success-color);"></i>
+                            <i class="fas fa-search me-2" style="color: #2d8a56;"></i>
                             检测结果
                         </h5>
                     </div>
@@ -62,13 +62,13 @@
                             {% if output_image %}
                             <img
                                 src="{{ url_for('static', filename=normalize_path(output_image)) }}"
-                                class="img-fluid rounded-3 shadow-lg lazy-image"
+                                class="img-fluid rounded lazy-image"
                                 alt="检测结果"
                                 loading="lazy"
                                 decoding="async"
                                 fetchpriority="high"
-                                style="max-height: 300px; object-fit: contain; border: 3px solid var(--success-color);"
-                                onerror="this.onerror=null; this.src='data:image/svg+xml;charset=UTF-8,%3Csvg%20width%3D%22640%22%20height%3D%22350%22%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%3E%3Crect%20width%3D%22100%25%22%20height%3D%22100%25%22%20fill%3D%22%23f8f9fa%22%2F%3E%3Ctext%20x%3D%2250%25%22%20y%3D%2250%25%22%20dominant-baseline%3D%22middle%22%20text-anchor%3D%22middle%22%20fill%3D%22%236c757d%22%20font-family%3D%22sans-serif%22%20font-size%3D%2214px%22%3EDetection%20result%20not%20available%3C%2Ftext%3E%3C%2Fsvg%3E';">
+                                style="max-height: 300px; object-fit: contain; border: 1px solid var(--sand);"
+                                onerror="this.onerror=null; this.src='data:image/svg+xml;charset=UTF-8,%3Csvg%20width%3D%22640%22%20height%3D%22350%22%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%3E%3Crect%20width%3D%22100%25%22%20height%3D%22100%25%22%20fill%3D%22%23f8f9fa%22%2F%3E%3Ctext%20x%3D%2250%25%22%20y%3D%2250%25%22%20dominant-baseline%3D%22middle%22%20text-anchor%3D%22middle%22%20fill%3D%22%236c757d%22%20font-family%3D%22sans-serif%22%20font-size%3D%2214px%22%3E%E6%A3%80%E6%B5%8B%E7%BB%93%E6%9E%9C%E4%B8%8D%E5%8F%AF%E7%94%A8%3C%2Ftext%3E%3C%2Fsvg%3E';">
                             <div class="image-overlay">
                                 <button class="btn btn-outline-success btn-lg" onclick="viewFullscreen('{{ url_for('static', filename=normalize_path(output_image)) }}')">
                                     <i class="fas fa-expand me-2"></i>全屏查看
@@ -91,8 +91,8 @@
     <!-- 检测结果统计 -->
     <section class="statistics-section mb-5 mb-lg-6">
         <div class="statistics-card card mx-auto" style="max-width: 1000px;">
-            <div class="card-header text-center py-4" style="background: linear-gradient(135deg, rgba(0, 212, 255, 0.2) 0%, rgba(131, 56, 236, 0.2) 100%); border-bottom: 1px solid rgba(0, 212, 255, 0.2);">
-                <h4 class="card-title mb-0 fw-bold" style="color: var(--neon-cyan);">
+            <div class="card-header text-center py-4" style="background: var(--light-sand); border-bottom: 1px solid var(--sand);">
+                <h4 class="card-title mb-0 fw-bold" style="color: var(--zap-orange);">
                     <i class="fas fa-chart-bar me-2"></i>检测结果统计
                 </h4>
             </div>
@@ -251,7 +251,7 @@
         <div class="info-card card mx-auto" style="max-width: 900px;">
             <div class="card-body p-5">
                 <h5 class="card-title text-center fw-bold mb-4">
-                    <i class="fas fa-info-circle me-2" style="color: var(--primary-color);"></i>关于YOLO目标检测
+                    <i class="fas fa-info-circle me-2" style="color: var(--zap-orange);"></i>关于YOLO目标检测
                 </h5>
                 <p class="card-text text-center mb-5 lead">YOLO (You Only Look Once) 是一种先进的实时目标检测系统，它将图像划分为网格，并同时预测边界框和类别概率。</p>
                 <div class="row g-4 justify-content-center">
@@ -314,8 +314,8 @@ document.addEventListener('DOMContentLoaded', function() {
 
         img.addEventListener('error', function() {
             this.classList.remove('loading');
-            this.src = 'data:image/svg+xml;charset=UTF-8,%3Csvg%20width%3D%22640%22%20height%3D%22350%22%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%3E%3Crect%20width%3D%22100%25%22%20height%3D%22100%25%22%20fill%3D%22%23f8f9fa%22%2F%3E%3Ctext%20x%3D%2250%25%22%20y%3D%2250%25%22%20dominant-baseline%3D%22middle%22%20text-anchor%3D%22middle%22%20fill%3D%22%236c757d%22%20font-family%3D%22sans-serif%22%20font-size%3D%2214px%22%3EImage%20could%20not%20be%20loaded%3C%2Ftext%3E%3C%2Fsvg%3E';
-            this.alt = 'Image not available';
+            this.src = 'data:image/svg+xml;charset=UTF-8,%3Csvg%20width%3D%22640%22%20height%3D%22350%22%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%3E%3Crect%20width%3D%22100%25%22%20height%3D%22100%25%22%20fill%3D%22%23f8f9fa%22%2F%3E%3Ctext%20x%3D%2250%25%22%20y%3D%2250%25%22%20dominant-baseline%3D%22middle%22%20text-anchor%3D%22middle%22%20fill%3D%22%236c757d%22%20font-family%3D%22sans-serif%22%20font-size%3D%2214px%22%3E%E5%9B%BE%E7%89%87%E5%8A%A0%E8%BD%BD%E5%A4%B1%E8%B4%A5%3C%2Ftext%3E%3C%2Fsvg%3E';
+            this.alt = '图片不可用';
             showToast('error', '图片加载失败', 'error');
         });
     });

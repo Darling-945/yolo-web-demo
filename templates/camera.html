@@ -4,7 +4,7 @@
 <div class="main-container fade-in">
   <!-- 标题区域 -->
   <header class="text-center mb-5">
-    <i class="fas fa-video fa-4x mb-4 float-animation" style="color: var(--primary-color);"></i>
+    <i class="fas fa-video fa-4x mb-4 float-animation" style="color: var(--zap-orange);"></i>
     <h1 class="display-4 fw-bold mb-3">摄像头实时检测</h1>
     <p class="text-muted">使用摄像头进行实时目标检测</p>
   </header>
@@ -16,14 +16,14 @@
         <div class="card">
           <div class="card-body p-4">
             <!-- 视频容器 -->
-            <div class="video-container mb-4" style="position: relative; background: #000; border-radius: 12px; overflow: hidden;">
+            <div class="video-container mb-4" style="position: relative; background: #000; border-radius: var(--radius-comfortable); overflow: hidden;">
               <video id="cameraVideo" autoplay playsinline muted style="width: 100%; height: auto; display: block;"></video>
               <canvas id="detectionCanvas" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 10;"></canvas>
 
               <!-- 摄像头未启动提示 -->
-              <div id="cameraPlaceholder" class="camera-placeholder" style="position: absolute; top: 0; left: 0; right: 0; bottom: 0; display: flex; align-items: center; justify-content: center; background: linear-gradient(135deg, #1a1a2e 0%, #2a2a4a 100%); color: #fff;">
+              <div id="cameraPlaceholder" class="camera-placeholder" style="position: absolute; top: 0; left: 0; right: 0; bottom: 0; display: flex; align-items: center; justify-content: center; background: var(--light-sand); color: #201515;">
                 <div class="text-center">
-                  <i class="fas fa-camera fa-4x mb-3" style="color: var(--primary-color);"></i>
+                  <i class="fas fa-camera fa-4x mb-3" style="color: var(--zap-orange);"></i>
                   <p class="mb-0">点击"开启摄像头"开始实时检测</p>
                   <p class="text-muted mt-2 small">
                     <i class="fas fa-info-circle me-1"></i>
@@ -222,22 +222,20 @@
 <style>
 .stat-card {
   padding: 1.5rem;
-  background: rgba(33, 150, 243, 0.05);
-  border-radius: 12px;
-  border: 1px solid rgba(33, 150, 243, 0.1);
+  background: var(--light-sand);
+  border-radius: var(--radius-comfortable);
+  border: 1px solid var(--sand);
   transition: all 0.3s ease;
 }
 
 .stat-card:hover {
-  background: rgba(33, 150, 243, 0.1);
-  transform: translateY(-3px);
-  box-shadow: 0 8px 20px rgba(33, 150, 243, 0.15);
+  border-color: var(--mid-warm);
 }
 
 .stat-value {
   font-size: 2.5rem;
   font-weight: 700;
-  background: var(--bg-gradient);
+  background: var(--zap-orange);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
@@ -246,7 +244,7 @@
 
 .stat-label {
   font-size: 0.9rem;
-  color: var(--secondary-color);
+  color: var(--warm-gray);
   font-weight: 500;
 }
 
@@ -267,7 +265,7 @@
 }
 
 .network-indicator .badge.bg-success {
-  background: rgba(40, 167, 69, 0.8) !important;
+  background: rgba(45, 138, 86, 0.8) !important;
 }
 
 .network-indicator .badge.bg-warning {
@@ -292,8 +290,8 @@
   height: 40px;
   margin: 5px;
   border-radius: 50%;
-  border: 4px solid var(--primary-color);
-  border-color: var(--primary-color) transparent var(--primary-color) transparent;
+  border: 4px solid var(--zap-orange);
+  border-color: var(--zap-orange) transparent var(--zap-orange) transparent;
   animation: ring-spin 1.2s linear infinite;
 }
 
@@ -309,10 +307,10 @@
 
 @keyframes pulse-border {
   0%, 100% {
-    box-shadow: 0 0 0 0 rgba(33, 150, 243, 0.4);
+    box-shadow: 0 0 0 0 rgba(255, 79, 0, 0.4);
   }
   50% {
-    box-shadow: 0 0 0 10px rgba(33, 150, 243, 0);
+    box-shadow: 0 0 0 10px rgba(255, 79, 0, 0);
   }
 }
 
@@ -336,7 +334,7 @@
 /* 类别名称样式 */
 .class-name {
   font-weight: 600;
-  color: var(--primary-color);
+  color: var(--zap-orange);
 }
 
 /* 统计面板样式 */
@@ -357,7 +355,7 @@
 
 /* 表格优化 */
 .table-hover tbody tr:hover {
-  background-color: rgba(33, 150, 243, 0.05);
+  background-color: var(--light-sand);
 }
 
 .table-sm td, .table-sm th {
@@ -375,12 +373,12 @@
 }
 
 .table-responsive::-webkit-scrollbar-thumb {
-  background: rgba(33, 150, 243, 0.3);
+  background: var(--sand);
   border-radius: 3px;
 }
 
 .table-responsive::-webkit-scrollbar-thumb:hover {
-  background: rgba(33, 150, 243, 0.5);
+  background: var(--mid-warm);
 }
 
 @media (max-width: 768px) {

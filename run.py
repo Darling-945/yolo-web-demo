@@ -6,6 +6,7 @@ import os
 import sys
 import argparse
 import socket
+import ipaddress
 import secrets
 from typing import Optional
 
@@ -140,13 +141,14 @@ def print_config_info(config, host, port):
     print("YOLO Web Demo - 目标检测服务")
     print("=" * 60)
     print(f"调试模式: {'开启' if config.DEBUG else '关闭'}")
-    print(f"本地访问: http://127.0.0.1:{port}")
+    print(f"本地访问: https://127.0.0.1:{port}")
 
     if host == '0.0.0.0':
         local_ip = get_local_ip()
-        print(f"局域网访问: http://{local_ip}:{port}")
+        print(f"局域网访问: https://{local_ip}:{port}")
 
     print(f"默认模型: {config.DEFAULT_MODEL}")
+    print("提示: 使用 --no-ssl 参数可禁用HTTPS")
     print("=" * 60)
 
 
@@ -158,10 +160,72 @@ def parse_arguments():
     parser.add_argument('--production', action='store_true', help='启用生产模式')
     parser.add_argument('--config', action='store_true', help='显示当前配置并退出')
     parser.add_argument('--manage', choices=['show'], help='配置管理命令')
+    parser.add_argument('--no-ssl', action='store_true', help='禁用SSL/HTTPS（摄像头功能将仅限localhost使用）')
     return parser.parse_args()
 
 
-def start_app(host, port, config):
+def generate_self_signed_cert():
+    """生成自签名SSL证书（用于开发环境，使摄像头功能在局域网中可用）"""
+    cert_file = 'cert.pem'
+    key_file = 'key.pem'
+
+    if os.path.exists(cert_file) and os.path.exists(key_file):
+        return cert_file, key_file
+
+    print("正在生成自签名SSL证书...")
+    try:
+        from cryptography import x509
+        from cryptography.x509.oid import NameOID
+        from cryptography.hazmat.primitives import hashes, serialization
+        from cryptography.hazmat.primitives.asymmetric import rsa
+        import datetime
+
+        key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+
+        subject = issuer = x509.Name([
+            x509.NameAttribute(NameOID.COMMON_NAME, "YOLO Detection Dev Server"),
+            x509.NameAttribute(NameOID.ORGANIZATION_NAME, "Development"),
+        ])
+
+        local_ip = get_local_ip()
+        cert = (
+            x509.CertificateBuilder()
+            .subject_name(subject)
+            .issuer_name(issuer)
+            .public_key(key.public_key())
+            .serial_number(x509.random_serial_number())
+            .not_valid_before(datetime.datetime.utcnow())
+            .not_valid_after(datetime.datetime.utcnow() + datetime.timedelta(days=365))
+            .add_extension(
+                x509.SubjectAlternativeName([
+                    x509.DNSName("localhost"),
+                    x509.IPAddress(ipaddress.IPv4Address("127.0.0.1")),
+                    x509.IPAddress(ipaddress.IPv4Address(local_ip)),
+                ]),
+                critical=False,
+            )
+            .sign(key, hashes.SHA256())
+        )
+
+        with open(cert_file, "wb") as f:
+            f.write(cert.public_bytes(serialization.Encoding.PEM))
+        with open(key_file, "wb") as f:
+            f.write(key.private_bytes(
+                serialization.Encoding.PEM,
+                serialization.PrivateFormat.TraditionalOpenSSL,
+                serialization.NoEncryption()
+            ))
+
+        print(f"SSL证书已生成: {cert_file}, {key_file}")
+        return cert_file, key_file
+
+    except ImportError:
+        print("警告: cryptography 库未安装，无法自动生成SSL证书")
+        print("  安装方法: pip install cryptography")
+        return None, None
+
+
+def start_app(host, port, config, use_ssl=True):
     try:
         from app import app
         from dotenv import load_dotenv
@@ -169,7 +233,23 @@ def start_app(host, port, config):
 
         # Windows下禁用重载器以避免与多线程冲突
         use_reloader = config.DEBUG and sys.platform != 'win32'
-        app.run(host=host, port=port, debug=config.DEBUG, use_reloader=use_reloader, threaded=True)
+
+        ssl_context = None
+        if use_ssl:
+            cert_file, key_file = generate_self_signed_cert()
+            if cert_file and key_file:
+                ssl_context = (cert_file, key_file)
+
+        if ssl_context:
+            local_ip = get_local_ip() if host == '0.0.0.0' else host
+            print(f"HTTPS 已启用（自签名证书）")
+            print(f"  本地访问: https://127.0.0.1:{port}")
+            if host == '0.0.0.0':
+                print(f"  局域网访问: https://{local_ip}:{port}")
+            print('  首次访问时浏览器会提示证书不受信任，请点击"高级"→"继续访问"')
+
+        app.run(host=host, port=port, debug=config.DEBUG, use_reloader=use_reloader,
+                threaded=True, ssl_context=ssl_context)
     except KeyboardInterrupt:
         print("\n服务器已停止")
     except Exception as e:
@@ -198,7 +278,7 @@ def main():
         return
 
     print_config_info(config, host, port)
-    start_app(host, port, config)
+    start_app(host, port, config, use_ssl=not args.no_ssl)
 
 
 if __name__ == "__main__":

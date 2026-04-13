@@ -1,17 +1,17 @@
 /**
- * Multi-file upload handler with video support
- * Maintains compatibility with existing interface
+ * 多文件上传处理器，支持视频文件
+ * 保持与现有接口的兼容性
  */
 
-// Global variables
+// 全局变量
 let uploadedFiles = [];
 let selectedFilesInfo = [];
 
-// File size constants (must match server-side)
+// 文件大小常量（必须与服务端一致）
 const MAX_IMAGE_SIZE = 50 * 1024 * 1024;  // 50MB
 const MAX_VIDEO_SIZE = 500 * 1024 * 1024; // 500MB
 
-// Initialize multi-file upload
+// 初始化多文件上传
 document.addEventListener('DOMContentLoaded', function() {
     initializeMultiFileUpload();
 });
@@ -20,7 +20,7 @@ function initializeMultiFileUpload() {
     const fileInput = document.getElementById('fileInput');
     if (!fileInput) return;
 
-    // Modify the file input to handle multiple files
+    // 修改文件输入以处理多个文件
     fileInput.addEventListener('change', handleMultipleFileSelect);
 
     // 不再添加 submit 事件监听器，由 index.html 处理
@@ -54,10 +54,10 @@ function handleMultipleFileSelect(event) {
     }
 
     if (previewGrid) {
-        previewGrid.innerHTML = ''; // Clear previous previews
+        previewGrid.innerHTML = ''; // 清除之前的预览
     }
 
-    // Process each file
+    // 处理每个文件
     Array.from(files).forEach((file, index) => {
         const fileInfo = processSingleFile(file, index);
         if (fileInfo) {
@@ -66,19 +66,19 @@ function handleMultipleFileSelect(event) {
         }
     });
 
-    // Enable upload button if we have valid files
+    // 如果有有效文件则启用上传按钮
     const uploadBtn = document.getElementById('uploadBtn');
     if (uploadBtn) {
         uploadBtn.disabled = selectedFilesInfo.length === 0;
     }
 
-    // Show success message
+    // 显示成功消息
     const validCount = selectedFilesInfo.length;
     if (validCount > 0) {
         showToast('success', `已成功添加 ${validCount} 个文件`, 'success');
     }
 
-    // Show error message for failed files
+    // 显示失败文件的错误消息
     const failedCount = files.length - validCount;
     if (failedCount > 0) {
         showToast('error', `${failedCount} 个文件无效或格式不支持`, 'error');
@@ -86,21 +86,21 @@ function handleMultipleFileSelect(event) {
 }
 
 function processSingleFile(file, index) {
-    // More robust file extension extraction
+    // 更健壮的文件扩展名提取
     const fileName = file.name;
     const lastDotIndex = fileName.lastIndexOf('.');
     const fileExtension = lastDotIndex > -1 ? fileName.substring(lastDotIndex).toLowerCase() : '';
 
-    // Also check MIME type as backup
+    // 同时检查MIME类型作为备份
     const mimeType = file.type || '';
     const isVideoMime = mimeType.startsWith('video/');
     const isImageMime = mimeType.startsWith('image/');
 
-    // Validate file type (case-insensitive)
+    // 验证文件类型（不区分大小写）
     const imageExtensions = ['.jpg', '.jpeg', '.png', '.webp', '.bmp', '.gif', '.tiff', '.tif'];
     const videoExtensions = ['.mp4', '.avi', '.mov', '.mkv', '.wmv', '.flv', '.webm', '.m4v'];
 
-    // Check both extension and MIME type
+    // 同时检查扩展名和MIME类型
     const hasValidExtension = imageExtensions.includes(fileExtension) || videoExtensions.includes(fileExtension);
     const hasValidMime = isVideoMime || isImageMime;
 
@@ -109,7 +109,7 @@ function processSingleFile(file, index) {
         return null;
     }
 
-    // Determine file type (prefer extension over MIME)
+    // 确定文件类型（优先使用扩展名而非MIME）
     let fileType, isImage;
     if (imageExtensions.includes(fileExtension)) {
         fileType = 'image';
@@ -128,7 +128,7 @@ function processSingleFile(file, index) {
         return null;
     }
 
-    // Validate file size
+    // 验证文件大小
     const maxSize = isImage ? MAX_IMAGE_SIZE : MAX_VIDEO_SIZE;
 
     if (file.size > maxSize) {
@@ -156,14 +156,14 @@ function createPreviewItem(fileInfo, container) {
     card.className = 'card preview-item fade-in';
     card.style.position = 'relative';
 
-    // Create preview content based on file type
+    // 根据文件类型创建预览内容
     if (fileInfo.type === 'image') {
         createImagePreview(fileInfo, card);
     } else {
         createVideoPreview(fileInfo, card);
     }
 
-    // Add file info
+    // 添加文件信息
     const infoDiv = document.createElement('div');
     infoDiv.className = 'card-body p-2';
     infoDiv.innerHTML = `
@@ -196,7 +196,7 @@ function createImagePreview(fileInfo, card) {
 }
 
 function createVideoPreview(fileInfo, card) {
-    // For videos, we create a placeholder with file icon
+    // 视频文件，创建带文件图标的占位符
     const placeholder = document.createElement('div');
     placeholder.className = 'card-img-top d-flex align-items-center justify-content-center bg-light';
     placeholder.style.height = '150px';
@@ -226,7 +226,7 @@ async function submitBatchAsyncInference() {
     const progressBar = document.getElementById('progressBar');
     const progressText = document.getElementById('progressText');
 
-    // Show loading state
+    // 显示加载状态
     if (uploadBtn) uploadBtn.disabled = true;
     if (uploadBtnText) uploadBtnText.style.display = 'none';
     if (uploadSpinner) uploadSpinner.style.display = 'inline-block';
@@ -335,7 +335,7 @@ function clearPreviews() {
     uploadedFiles = [];
 }
 
-// Override drag and drop handlers for multiple files
+// 覆盖拖拽事件处理器以支持多文件
 function handleDrop(e) {
     e.preventDefault();
     e.stopPropagation();
@@ -348,17 +348,17 @@ function handleDrop(e) {
         return;
     }
 
-    // Update file input with dropped files
+    // 使用拖拽的文件更新文件输入
     const fileInput = document.getElementById('fileInput');
     if (fileInput) {
-        // Create a new DataTransfer object to set files
+        // 创建新的 DataTransfer 对象来设置文件
         const dataTransfer = new DataTransfer();
         Array.from(files).forEach(file => {
             dataTransfer.items.add(file);
         });
         fileInput.files = dataTransfer.files;
 
-        // Trigger the change event
+        // 触发 change 事件
         const event = new Event('change', { bubbles: true });
         fileInput.dispatchEvent(event);
     }
@@ -367,18 +367,18 @@ function handleDrop(e) {
     showToast('success', `已添加文件: ${fileNames}`, 'success');
 }
 
-// Extend drag and drop functionality
+// 扩展拖拽功能
 document.addEventListener('DOMContentLoaded', function() {
     const uploadArea = document.getElementById('uploadArea');
 
     if (uploadArea) {
-        // Update dragover text
+        // 更新拖拽提示文本
         const uploadHelp = document.getElementById('upload-help');
         if (uploadHelp) {
             uploadHelp.innerHTML = '支持图片格式：JPG, JPEG, PNG, WEBP, BMP, GIF, TIFF<br>支持视频格式：MP4, AVI, MOV, MKV, WMV, FLV, WEBM, M4V<br>图片最大 50MB，视频最大 500MB<br>可同时选择多个文件';
         }
 
-        // Replace existing drop handler
+        // 替换现有的 drop 处理器
         ['dragenter', 'dragover'].forEach(eventName => {
             uploadArea.addEventListener(eventName, preventDefaults, false);
         });
@@ -403,10 +403,10 @@ function unhighlight(e) {
     }
 }
 
-// Toast notification function (if not already defined)
+// Toast 通知函数（如果尚未定义）
 if (typeof showToast === 'undefined') {
     function showToast(type, message, title = '') {
-        // Create toast container if it doesn't exist
+        // 如果不存在则创建 toast 容器
         let toastContainer = document.getElementById('toastContainer');
         if (!toastContainer) {
             toastContainer = document.createElement('div');
@@ -418,7 +418,7 @@ if (typeof showToast === 'undefined') {
             document.body.appendChild(toastContainer);
         }
 
-        // Create toast element
+        // 创建 toast 元素
         const toast = document.createElement('div');
         toast.className = `alert alert-${type} alert-dismissible fade show mb-2`;
         toast.style.minWidth = '300px';
@@ -430,7 +430,7 @@ if (typeof showToast === 'undefined') {
 
         toastContainer.appendChild(toast);
 
-        // Auto remove after 5 seconds
+        // 5秒后自动移除
         setTimeout(() => {
             if (toast.parentNode) {
                 toast.parentNode.removeChild(toast);

@@ -18,7 +18,7 @@
                 <div class="card h-100 video-card">
                     <div class="card-header text-center py-4">
                         <h5 class="card-title mb-0 fw-semibold">
-                            <i class="fas fa-video me-2" style="color: var(--neon-cyan);"></i>
+                            <i class="fas fa-video me-2" style="color: var(--zap-orange);"></i>
                             原始视频
                         </h5>
                     </div>
@@ -27,15 +27,15 @@
                             {% if input_file %}
                             <div class="video-skeleton clickable-skeleton" id="originalVideoSkeleton" onclick="loadVideo('originalVideo')">
                                 <div class="skeleton-content">
-                                    <i class="fas fa-play-circle fa-4x mb-3 video-play-icon" style="color: var(--neon-cyan);"></i>
+                                    <i class="fas fa-play-circle fa-4x mb-3 video-play-icon" style="color: var(--zap-orange);"></i>
                                     <p class="mt-3 text-muted">点击加载视频</p>
                                 </div>
                             </div>
                             <video id="originalVideo"
                                    data-src="{{ url_for('static', filename=normalize_path(input_file)) }}"
-                                   class="img-fluid rounded-3 shadow-lg video-player lazy-video"
+                                   class="img-fluid rounded-3 video-player lazy-video"
                                    preload="none"
-                                   style="max-height: 400px; border: 3px solid var(--neon-cyan); box-shadow: 0 0 20px rgba(0, 212, 255, 0.3); display: none;"
+                                   style="max-height: 400px; border: 1px solid var(--sand); display: none;"
                                    controls
                                    onloadeddata="hideVideoSkeleton('originalVideoSkeleton')"
                                    onerror="handleVideoError(this, '原始视频')">
@@ -56,7 +56,7 @@
                 <div class="card h-100 video-card">
                     <div class="card-header text-center py-4">
                         <h5 class="card-title mb-0 fw-semibold">
-                            <i class="fas fa-search me-2" style="color: var(--success-color);"></i>
+                            <i class="fas fa-search me-2" style="color: #2d8a56;"></i>
                             检测结果
                         </h5>
                     </div>
@@ -65,15 +65,15 @@
                             {% if result.output_video_path %}
                             <div class="video-skeleton clickable-skeleton" id="resultVideoSkeleton" onclick="loadVideo('resultVideo')">
                                 <div class="skeleton-content">
-                                    <i class="fas fa-play-circle fa-4x mb-3 video-play-icon" style="color: var(--success-color);"></i>
+                                    <i class="fas fa-play-circle fa-4x mb-3 video-play-icon" style="color: #2d8a56;"></i>
                                     <p class="mt-3 text-muted">点击加载视频</p>
                                 </div>
                             </div>
                             <video id="resultVideo"
                                    data-src="{{ url_for('static', filename=normalize_path(result.output_video_path)) }}"
-                                   class="img-fluid rounded-3 shadow-lg video-player lazy-video"
+                                   class="img-fluid rounded-3 video-player lazy-video"
                                    preload="none"
-                                   style="max-height: 400px; border: 3px solid var(--success-color); box-shadow: 0 0 20px rgba(0, 255, 136, 0.3); display: none;"
+                                   style="max-height: 400px; border: 1px solid var(--sand); display: none;"
                                    controls
                                    onloadeddata="hideVideoSkeleton('resultVideoSkeleton')"
                                    onerror="handleVideoError(this, '检测结果视频')">
@@ -97,7 +97,7 @@
     <!-- 检测结果统计 -->
     <section class="statistics-section mb-5 mb-lg-6">
         <div class="statistics-card card mx-auto" style="max-width: 1000px;">
-            <div class="card-header text-center py-4" style="background: var(--bg-gradient-simple); color: white;">
+            <div class="card-header text-center py-4" style="background: var(--zap-black); color: white;">
                 <h4 class="card-title mb-0 fw-bold">
                     <i class="fas fa-chart-bar me-2"></i>视频处理统计
                 </h4>
@@ -222,7 +222,7 @@
                                         <tr>
                                             <td class="text-center fw-semibold">视频分辨率</td>
                                             <td class="text-center">
-                                                <span class="badge bg-success fs-6 px-3 py-2">{{ result.video_properties.width }}×{{ result.video_properties.height }}</span>
+                                                <span class="badge bg-success fs-6 px-3 py-2">{{ result.video_properties.width }}x{{ result.video_properties.height }}</span>
                                             </td>
                                         </tr>
                                         {% endif %}
@@ -296,7 +296,7 @@
         <div class="info-card card mx-auto" style="max-width: 900px;">
             <div class="card-body p-5">
                 <h5 class="card-title text-center fw-bold mb-4">
-                    <i class="fas fa-info-circle me-2" style="color: var(--primary-color);"></i>关于YOLO视频目标检测
+                    <i class="fas fa-info-circle me-2" style="color: var(--zap-orange);"></i>关于YOLO视频目标检测
                 </h5>
                 <p class="card-text text-center mb-5 lead">YOLO视频目标检测能够实时处理视频流，在每一帧中识别和定位多个目标，为视频分析和监控提供强大的AI能力。</p>
                 <div class="row g-4 justify-content-center">
@@ -592,7 +592,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     infoDiv.className = 'video-info text-muted small mt-2';
                     wrapper.appendChild(infoDiv);
                 }
-                infoDiv.innerHTML = `<i class="fas fa-clock me-1"></i>时长: ${duration} | <i class="fas fa-expand me-1"></i>${this.videoWidth}×${this.videoHeight}`;
+                infoDiv.innerHTML = `<i class="fas fa-clock me-1"></i>时长: ${duration} | <i class="fas fa-expand me-1"></i>${this.videoWidth}x${this.videoHeight}`;
             }
         });
 
@@ -636,7 +636,7 @@ function formatDuration(seconds) {
 }
 
 .clickable-skeleton:hover {
-    background: linear-gradient(135deg, #2a2a4a 0%, #3a3a5a 100%);
+    background: var(--light-sand);
 }
 
 .clickable-skeleton:hover .video-play-icon {
@@ -654,27 +654,14 @@ function formatDuration(seconds) {
     display: flex;
     align-items: center;
     justify-content: center;
-    background: linear-gradient(135deg, #1a1a2e 0%, #2a2a4a 100%);
+    background: var(--light-sand);
     z-index: 10;
     transition: opacity 0.3s ease;
 }
 
-/* 浅色模式视频骨架屏 */
-body:not(.dark-mode) .video-skeleton {
-    background: linear-gradient(135deg, #e9ecef 0%, #dee2e6 100%);
-}
-
-body:not(.dark-mode) .video-skeleton:hover {
-    background: linear-gradient(135deg, #dee2e6 0%, #ced4da 100%);
-}
-
 .skeleton-content {
     text-align: center;
-    color: var(--dark-text-primary);
-}
-
-body:not(.dark-mode) .skeleton-content {
-    color: var(--light-text-primary);
+    color: var(--dark-charcoal);
 }
 
 /* 视频播放图标动画 */
@@ -699,12 +686,6 @@ body:not(.dark-mode) .skeleton-content {
     height: auto;
     display: block;
     background: #000;
-}
-
-/* 深色模式下的视频容器 */
-body.dark-mode .video-wrapper {
-    background: #000;
-    border-color: var(--dark-border-color);
 }
 
 /* 响应式视频高度 */
@@ -735,19 +716,14 @@ body.dark-mode .video-wrapper {
     border-radius: 6px;
 }
 
-body.dark-mode .video-info {
-    background: rgba(255, 255, 255, 0.05);
-    color: var(--dark-text-secondary);
-}
-
 /* 视频卡片悬停效果 */
 .video-card {
-    transition: transform 0.3s ease, box-shadow 0.3s ease;
+    transition: transform 0.3s ease, border-color 0.3s ease;
 }
 
 .video-card:hover {
     transform: translateY(-3px);
-    box-shadow: 0 15px 35px rgba(33, 150, 243, 0.15);
+    border: 1px solid var(--sand);
 }
 
 /* 视频对比区域移动端优化 */
