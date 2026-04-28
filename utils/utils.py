@@ -22,21 +22,6 @@ MAX_VIDEO_SIZE = 500 * 1024 * 1024  # 500MB
 config_instance = get_config()
 os.makedirs(os.path.dirname(config_instance.LOG_FILE), exist_ok=True)
 
-# Add rotating file handler to prevent unlimited log growth
-from logging.handlers import RotatingFileHandler
-
-logging.basicConfig(
-    level=getattr(logging, config_instance.LOG_LEVEL),
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    handlers=[
-        RotatingFileHandler(
-            config_instance.LOG_FILE,
-            maxBytes=10*1024*1024,  # 10MB max file size
-            backupCount=5  # Keep 5 backup files
-        ),
-        logging.StreamHandler()
-    ]
-)
 logger = logging.getLogger(__name__)
 
 
@@ -403,17 +388,38 @@ def get_file_info(file_path: str) -> Dict[str, Any]:
 
 
 def setup_app_logging(config: Config) -> logging.Logger:
-    """Set up logging configuration for the Flask app"""
+    """
+    Set up logging configuration for the Flask app
+    Only configures logging on first call to avoid duplicate handlers
+    """
     from threading import Timer
+    from logging.handlers import RotatingFileHandler
 
-    logging.basicConfig(
-        level=getattr(logging, config.LOG_LEVEL),
-        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-        handlers=[
-            logging.FileHandler(config.LOG_FILE),
-            logging.StreamHandler()
-        ]
-    )
+    # Get root logger
+    root_logger = logging.getLogger()
+
+    # Only configure if not already configured (no handlers)
+    if not root_logger.handlers:
+        # Add rotating file handler to prevent unlimited log growth
+        file_handler = RotatingFileHandler(
+            config.LOG_FILE,
+            maxBytes=10*1024*1024,  # 10MB max file size
+            backupCount=5  # Keep 5 backup files
+        )
+        file_handler.setFormatter(logging.Formatter(
+            '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+        ))
+
+        # Add console handler
+        console_handler = logging.StreamHandler()
+        console_handler.setFormatter(logging.Formatter(
+            '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+        ))
+
+        # Configure root logger
+        root_logger.setLevel(getattr(logging, config.LOG_LEVEL))
+        root_logger.addHandler(file_handler)
+        root_logger.addHandler(console_handler)
 
     os.makedirs(config.UPLOAD_FOLDER, exist_ok=True)
     os.makedirs(config.OUTPUT_FOLDER, exist_ok=True)
@@ -467,6 +473,8 @@ def generate_unique_filename(original_filename: str) -> str:
 class PerformanceMonitor:
     """Performance monitoring utility for tracking inference performance"""
 
+    MAX_METRICS_HISTORY = 10000  # Maximum number of metrics to keep in history
+
     def __init__(self):
         self.metrics = {
             'inference_times': [],
@@ -476,6 +484,17 @@ class PerformanceMonitor:
         }
         self.lock = threading.Lock()
 
+    def _trim_metrics_history(self):
+        """Trim metrics history to prevent unlimited growth"""
+        if len(self.metrics['inference_times']) > self.MAX_METRICS_HISTORY:
+            # Keep only the most recent metrics
+            excess = len(self.metrics['inference_times']) - self.MAX_METRICS_HISTORY
+            self.metrics['inference_times'] = self.metrics['inference_times'][excess:]
+
+        if len(self.metrics['memory_usage']) > self.MAX_METRICS_HISTORY:
+            excess = len(self.metrics['memory_usage']) - self.MAX_METRICS_HISTORY
+            self.metrics['memory_usage'] = self.metrics['memory_usage'][excess:]
+
     def record_inference(self, inference_time: float, memory_mb: Optional[float] = None):
         """Record inference performance metrics"""
         with self.lock:
@@ -483,6 +502,9 @@ class PerformanceMonitor:
             self.metrics['request_count'] += 1
             if memory_mb:
                 self.metrics['memory_usage'].append(memory_mb)
+
+            # Trim history if needed
+            self._trim_metrics_history()
 
     def record_error(self):
         """Record an error occurrence"""

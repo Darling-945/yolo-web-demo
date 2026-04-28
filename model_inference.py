@@ -41,6 +41,7 @@ except ImportError:
 # Model cache for preloading
 MODEL_CACHE = {}
 CACHE_LOCK = Lock()
+MAX_MODEL_CACHE_SIZE = 10  # Maximum number of models to keep in cache
 
 
 def convert_numpy_types(obj):
@@ -93,6 +94,9 @@ class YOLOInference:
         self.device = self._select_device(device)
         self.half = half and self.device.type != 'cpu'  # Only use half on GPU
         self._warmed_up = False
+
+        # Thread safety lock for instance attributes
+        self._instance_lock = Lock()
 
         self.load_model()
 
@@ -218,6 +222,25 @@ class YOLOInference:
         """Check if processing has been cancelled"""
         return self._stop_event.is_set()
 
+    def _check_and_handle_cancellation(self, output_path: str) -> None:
+        """
+        Check if processing was cancelled and handle cleanup
+        Raises InterruptedError if processing was cancelled
+
+        Args:
+            output_path (str): Path to output file to clean up
+        """
+        if self._stop_event.is_set():
+            logger.warning("Video processing cancelled by client")
+            # Clean up partial output file
+            if os.path.exists(output_path):
+                try:
+                    os.remove(output_path)
+                    logger.info(f"Removed partial output file: {output_path}")
+                except Exception as e:
+                    logger.warning(f"Failed to remove partial output file: {e}")
+            raise InterruptedError("Video processing was cancelled")
+
     def detect(self, image_path: str, output_path: str) -> Dict:
         """
         Detect objects in an image and save the annotated result
@@ -237,6 +260,11 @@ class YOLOInference:
         annotated_img = None
         results = None
 
+        # Thread-safe access to thresholds
+        with self._instance_lock:
+            conf_threshold = self.conf_threshold
+            iou_threshold = self.iou_threshold
+
         try:
             # Validate input image path
             if not os.path.exists(image_path):
@@ -252,14 +280,14 @@ class YOLOInference:
             logger.info(f"Processing image: {image_path} ({img_width}x{img_height})")
 
             # Perform inference with timing and optimizations
-            logger.info(f"Running inference with model {self.model_path}, conf={self.conf_threshold}, iou={self.iou_threshold}")
+            logger.info(f"Running inference with model {self.model_path}, conf={conf_threshold}, iou={iou_threshold}")
             inference_start_time = time.time()
 
             # Optimized inference call
             results = self.model(
                 img,
-                conf=self.conf_threshold,
-                iou=self.iou_threshold,
+                conf=conf_threshold,
+                iou=iou_threshold,
                 verbose=False,  # Disable verbose output for performance
                 half=self.half   # Use FP16 if enabled
             )
@@ -364,6 +392,11 @@ class YOLOInference:
         if self.model is None:
             raise ValueError("Model not loaded. Call load_model() first.")
 
+        # Thread-safe access to thresholds
+        with self._instance_lock:
+            conf_threshold = self.conf_threshold
+            iou_threshold = self.iou_threshold
+
         # Read the input image
         img = cv2.imread(image_path)
         if img is None:
@@ -371,7 +404,7 @@ class YOLOInference:
 
         # Perform inference with timing
         inference_start_time = time.time()
-        results = self.model(img, conf=self.conf_threshold, iou=self.iou_threshold,
+        results = self.model(img, conf=conf_threshold, iou=iou_threshold,
                             verbose=False, half=self.half)
         inference_time = time.time() - inference_start_time
 
@@ -441,6 +474,11 @@ class YOLOInference:
         if self.model is None:
             raise ValueError("Model not loaded. Call load_model() first.")
 
+        # Thread-safe access to thresholds
+        with self._instance_lock:
+            conf_threshold = self.conf_threshold
+            iou_threshold = self.iou_threshold
+
         # Reset stop event for new processing
         self.reset_stop_event()
 
@@ -452,6 +490,9 @@ class YOLOInference:
         cap = cv2.VideoCapture(video_path)
         if not cap.isOpened():
             raise ValueError(f"Could not open video file: {video_path}")
+
+        # Initialize out to None for safe cleanup in finally block
+        out = None
 
         # Get video properties
         fps = int(cap.get(cv2.CAP_PROP_FPS))
@@ -471,7 +512,7 @@ class YOLOInference:
 
         if use_ffmpeg:
             logger.info(f"Using ffmpeg for H264 encoding (video under {MAX_FFMPEG_BUFFER_FRAMES} frames)")
-            out = None  # Placeholder for ffmpeg
+            # out will be created later with ffmpeg
             used_codec_name = 'H264 (ffmpeg)'
         else:
             if FFMPEG_AVAILABLE and total_frames > MAX_FFMPEG_BUFFER_FRAMES:
@@ -529,16 +570,7 @@ class YOLOInference:
                     break
 
                 # Check if processing was cancelled (client disconnected)
-                if self._stop_event.is_set():
-                    logger.warning("Video processing cancelled by client")
-                    # Clean up partial output file
-                    if os.path.exists(output_path):
-                        try:
-                            os.remove(output_path)
-                            logger.info(f"Removed partial output file: {output_path}")
-                        except Exception as e:
-                            logger.warning(f"Failed to remove partial output file: {e}")
-                    raise InterruptedError("Video processing was cancelled")
+                self._check_and_handle_cancellation(output_path)
 
                 # Check if this frame should be processed for inference
                 should_process_inference = (frame_count % frame_skip == 0)
@@ -550,7 +582,8 @@ class YOLOInference:
 
                     # Process batch when it reaches batch_size
                     if len(frame_batch) >= batch_size:
-                        batch_results = self._process_frame_batch(frame_batch, frame_indices)
+                        batch_results = self._process_frame_batch(frame_batch, frame_indices,
+                                                                  conf_threshold, iou_threshold)
                         inference_times.extend(batch_results['inference_times'])
                         total_detections_across_video.extend(batch_results['detections'])
 
@@ -586,16 +619,7 @@ class YOLOInference:
                             break
                 else:
                     # Check if processing was cancelled (client disconnected)
-                    if self._stop_event.is_set():
-                        logger.warning("Video processing cancelled by client")
-                        # Clean up partial output file
-                        if os.path.exists(output_path):
-                            try:
-                                os.remove(output_path)
-                                logger.info(f"Removed partial output file: {output_path}")
-                            except Exception as e:
-                                logger.warning(f"Failed to remove partial output file: {e}")
-                        raise InterruptedError("Video processing was cancelled")
+                    self._check_and_handle_cancellation(output_path)
 
                     # For skipped frames, use the last processed results if available
                     if last_annotated_frame is not None:
@@ -627,7 +651,8 @@ class YOLOInference:
 
             # Process remaining frames in batch
             if frame_batch:
-                batch_results = self._process_frame_batch(frame_batch, frame_indices)
+                batch_results = self._process_frame_batch(frame_batch, frame_indices,
+                                                          conf_threshold, iou_threshold)
                 inference_times.extend(batch_results['inference_times'])
                 total_detections_across_video.extend(batch_results['detections'])
 
@@ -645,10 +670,14 @@ class YOLOInference:
                         out.write(annotated_frame)
 
         finally:
-            # Ensure resources are released
-            cap.release()
-            if out:
+            # Ensure resources are released even if an error occurs
+            if 'cap' in locals() and cap is not None:
+                cap.release()
+                logger.debug("VideoCapture released")
+
+            if 'out' in locals() and out is not None:
                 out.release()
+                logger.debug("VideoWriter released")
 
             # Use ffmpeg to encode video if frames were buffered
             if use_ffmpeg and processed_frames_buffer:
@@ -712,8 +741,8 @@ class YOLOInference:
                 'total_detections': len(total_detections_across_video),
                 'detection_summary': video_detection_summary,
                 'model_used': self.model_path,
-                'confidence_threshold': self.conf_threshold,
-                'iou_threshold': self.iou_threshold,
+                'confidence_threshold': conf_threshold,
+                'iou_threshold': iou_threshold,
                 'fps': fps,
                 'frame_skip': frame_skip,
                 'batch_size': batch_size,
@@ -745,7 +774,8 @@ class YOLOInference:
 
         return result
 
-    def _process_frame_batch(self, frame_batch: List[np.ndarray], frame_indices: List[int]) -> Dict:
+    def _process_frame_batch(self, frame_batch: List[np.ndarray], frame_indices: List[int],
+                            conf_threshold: float, iou_threshold: float) -> Dict:
         """
         Process a batch of frames for inference (internal method)
         TRUE batch processing - all frames processed in single GPU call
@@ -753,6 +783,8 @@ class YOLOInference:
         Args:
             frame_batch (List[np.ndarray]): List of frames to process
             frame_indices (List[int]): Frame numbers for the batch
+            conf_threshold (float): Confidence threshold for detections
+            iou_threshold (float): IOU threshold for NMS
 
         Returns:
             dict: Batch processing results with annotated frames and detections
@@ -778,8 +810,8 @@ class YOLOInference:
             # This is MUCH faster than sequential inference on GPU
             batch_results = self.model(
                 frame_batch,  # Pass list of frames directly
-                conf=self.conf_threshold,
-                iou=self.iou_threshold,
+                conf=conf_threshold,
+                iou=iou_threshold,
                 verbose=False,
                 half=self.half
             )
@@ -836,13 +868,16 @@ class YOLOInference:
             'inference_times': inference_times
         }
 
-    def _process_frame_batch_sequential(self, frame_batch: List[np.ndarray], frame_indices: List[int]) -> Dict:
+    def _process_frame_batch_sequential(self, frame_batch: List[np.ndarray], frame_indices: List[int],
+                                       conf_threshold: float, iou_threshold: float) -> Dict:
         """
         Fallback sequential frame processing (used if batch inference fails)
 
         Args:
             frame_batch (List[np.ndarray]): List of frames to process
             frame_indices (List[int]): Frame numbers for the batch
+            conf_threshold (float): Confidence threshold for detections
+            iou_threshold (float): IOU threshold for NMS
 
         Returns:
             dict: Batch processing results
@@ -853,7 +888,7 @@ class YOLOInference:
 
         for frame, frame_idx in zip(frame_batch, frame_indices):
             inference_start = time.time()
-            results = self.model(frame, conf=self.conf_threshold, iou=self.iou_threshold,
+            results = self.model(frame, conf=conf_threshold, iou=iou_threshold,
                                 verbose=False, half=self.half)
             inference_time = time.time() - inference_start
             inference_times.append(inference_time)
@@ -1043,10 +1078,17 @@ class YOLOInference:
         # Load and cache the model
         self.load_model()
 
-        # Add to cache
+        # Add to cache with size limit
         with CACHE_LOCK:
+            # Remove oldest model if cache is full
+            if len(MODEL_CACHE) >= MAX_MODEL_CACHE_SIZE:
+                # Remove the first (oldest) entry
+                oldest_key = next(iter(MODEL_CACHE))
+                del MODEL_CACHE[oldest_key]
+                logger.info(f"Model cache full, removed: {oldest_key}")
+
             MODEL_CACHE[cache_key] = self.model
-            logger.info(f"Model cached: {cache_key}")
+            logger.info(f"Model cached: {cache_key} (cache size: {len(MODEL_CACHE)}/{MAX_MODEL_CACHE_SIZE})")
 
 
 def preload_models(model_list: List[str] = None, max_cache_size: int = 5, device: str = None, half: bool = True):

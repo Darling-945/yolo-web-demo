@@ -1251,7 +1251,21 @@ def custom_static(filename):
     import mimetypes
     import os
 
+    # Security: Validate filename to prevent path traversal attacks
+    # Check for path traversal attempts
+    if '..' in filename or filename.startswith('/'):
+        logger.warning(f"Path traversal attempt detected: {filename}")
+        return {'success': False, 'error': 'Invalid file path'}, 400
+
+    # Normalize the path and ensure it's within static directory
     file_path = os.path.join('static', filename)
+    file_path = os.path.normpath(file_path)
+
+    # Ensure the normalized path is still within static directory
+    static_dir = os.path.abspath('static')
+    if not os.path.abspath(file_path).startswith(static_dir):
+        logger.warning(f"Path traversal attempt detected (normalized): {filename}")
+        return {'success': False, 'error': 'Invalid file path'}, 400
 
     # Check if file exists
     if not os.path.exists(file_path):
